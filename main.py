@@ -1,14 +1,35 @@
+# URL to check:
+# https://www.youtube.com/watch?v=dQw4w9WgXcQ
+
 from tkinter import *
 from tkinter import ttk
 import subprocess
 
+current_state = 'init'
+
 def on_go(*args):
-    ret = subprocess.run(["youtube-dl", "-F", url_var.get()], capture_output=True)
+    global current_state
+    if current_state == 'init':
+        info_var.set('Getting info...')
+        current_state = 'info'
+        ret = subprocess.run(["youtube-dl", "-F", url_var.get()], capture_output=True)
+    elif current_state == 'info':
+        info_var.set('Downloading...')
+        current_state = 'download'
+        # ret = subprocess.run(["youtube-dl", url_var.get()], capture_output=True)
+        ret = subprocess.run(["youtube-dl", '--help'], capture_output=True)
+        current_state = 'init'
+
     if ret.returncode != 0:
         info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
+        current_state = 'init'
     else:
         info_var.set(ret.stdout)
-        go_title_var.set("download")
+        if current_state == 'info':
+            go_title_var.set("download")
+        else:
+            go_title_var.set("check")
+
 
 root = Tk()
 root.title("YTDL")

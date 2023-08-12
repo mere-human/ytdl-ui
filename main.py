@@ -44,7 +44,7 @@ url_entry = ttk.Entry(mainframe, width=7, textvariable=url_var)
 url_entry.grid(column=2, row=1, sticky=(W, E))
 
 info_var = StringVar()
-ttk.Label(mainframe, textvariable=info_var).grid(column=2, row=2, sticky=(W, E))
+ttk.Label(mainframe, textvariable=info_var).grid(column=1, row=2, columnspan=3, sticky=W)
 
 go_title_var = StringVar(value="check")
 go_btn = ttk.Button(mainframe, textvariable=go_title_var, command=on_go)

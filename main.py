@@ -1,8 +1,14 @@
 from tkinter import *
 from tkinter import ttk
+import subprocess
 
 def on_go(*args):
-        pass
+    ret = subprocess.run(["youtube-dl", "-F", url_var.get()], capture_output=True)
+    if ret.returncode != 0:
+        info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
+    else:
+        info_var.set(ret.stdout)
+        go_title_var.set("download")
 
 root = Tk()
 root.title("YTDL")
@@ -16,10 +22,12 @@ url_var = StringVar()
 url_entry = ttk.Entry(mainframe, width=7, textvariable=url_var)
 url_entry.grid(column=2, row=1, sticky=(W, E))
 
-meters = StringVar()
-ttk.Label(mainframe, textvariable=meters).grid(column=2, row=2, sticky=(W, E))
+info_var = StringVar()
+ttk.Label(mainframe, textvariable=info_var).grid(column=2, row=2, sticky=(W, E))
 
-ttk.Button(mainframe, text="go", command=on_go).grid(column=3, row=1, sticky=W)
+go_title_var = StringVar(value="check")
+go_btn = ttk.Button(mainframe, textvariable=go_title_var, command=on_go)
+go_btn.grid(column=3, row=1, sticky=W)
 
 ttk.Label(mainframe, text="URL:").grid(column=1, row=1, sticky=E)
 

@@ -7,7 +7,7 @@ import subprocess
 
 current_state = 'init'
 
-def on_go(*args):
+def run_btn_press(*args):
     global current_state
     if current_state == 'init':
         info_var.set('Getting info...')
@@ -26,36 +26,50 @@ def on_go(*args):
     else:
         info_var.set(ret.stdout)
         if current_state == 'info':
-            go_title_var.set("download")
+            run_btn_var.set("download")
         else:
-            go_title_var.set("check")
+            run_btn_var.set("check")
 
 
 root = Tk()
 root.title("YTDL")
 
-mainframe = ttk.Frame(root, padding="3 3 12 12")
-mainframe.grid(column=0, row=0, sticky=(N, W, E, S))
+# |---------------------------------|
+# | frame                           |
+# |---------------------------------|
+# | url_label | url_entry | run_btn |
+# |---------------------------------|
+# | info_frame + info_label         |
+# |---------------------------------|
+
+frame = ttk.Frame(root, padding="3 3 12 12")
+url_label = ttk.Label(frame, text="URL:")
+url_var = StringVar()
+url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
+run_btn_var = StringVar(value="check")
+run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
+info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
+info_var = StringVar()
+info_label = ttk.Label(info_frame, textvariable=info_var)
+
+frame.grid(column=0, row=0, sticky=(N, W, E, S))
+url_label.grid(column=1, row=1, sticky=E)
+url_entry.grid(column=2, row=1, sticky=(W, E))
+run_btn.grid(column=3, row=1, sticky=W)
+info_frame.grid(column=1, row=2, columnspan=3, sticky=(N, W, E, S))
+info_label.grid(column=0, row=0, sticky=(N, W, E, S))
+
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
+frame.columnconfigure(2, weight=2)
+frame.rowconfigure(2, weight=2)
+info_frame.columnconfigure(0, weight=1)
+info_frame.rowconfigure(0, weight=1)
 
-url_var = StringVar()
-url_entry = ttk.Entry(mainframe, width=7, textvariable=url_var)
-url_entry.grid(column=2, row=1, sticky=(W, E))
-
-info_var = StringVar()
-ttk.Label(mainframe, textvariable=info_var).grid(column=1, row=2, columnspan=3, sticky=W)
-
-go_title_var = StringVar(value="check")
-go_btn = ttk.Button(mainframe, textvariable=go_title_var, command=on_go)
-go_btn.grid(column=3, row=1, sticky=W)
-
-ttk.Label(mainframe, text="URL:").grid(column=1, row=1, sticky=E)
-
-for child in mainframe.winfo_children(): 
+for child in frame.winfo_children(): 
     child.grid_configure(padx=5, pady=5)
 
 url_entry.focus()
-root.bind("<Return>", on_go)
+root.bind("<Return>", run_btn_press)
 
 root.mainloop()

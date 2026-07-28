@@ -22,6 +22,10 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [ ] Run check and download off the main thread (`threading` or `Popen` + polling)
   - [ ] Update UI only via `root.after(...)` from worker threads
   - [ ] Keep window responsive during long operations
+- [ ] **Bug: HTTP 429 on URL check**
+  - [ ] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
+  - [ ] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
+  - [ ] Surface clear, actionable guidance in the UI when rate-limited
 
 ---
 
@@ -50,6 +54,8 @@ Make format lists and progress readable.
 
 - [ ] **Scroll**
   - [ ] Replace single `ttk.Label` with `Text` + `Scrollbar` (or `ScrolledText`)
+- [ ] **Copy from info panel**
+  - [ ] Allow selecting and copying text (e.g. Ctrl+C, standard context menu)
 - [ ] **Wrap text**
   - [ ] Enable word wrap for long lines in the info area
 - [ ] **Live status while downloading**

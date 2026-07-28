@@ -10,10 +10,10 @@ See also: [Agent guide](AGENTS.md) · [README](README.md)
 
 Core backend and UI responsiveness. Unblocks everything else.
 
-- [ ] **Migrate to yt-dlp**
-  - [ ] Replace all `youtube-dl` CLI invocations with `yt-dlp`
-  - [ ] Update README and user-facing strings
-  - [ ] Document yt-dlp install requirement (on PATH for dev)
+- [x] **Migrate to yt-dlp**
+  - [x] Replace all `youtube-dl` CLI invocations with `yt-dlp`
+  - [x] Update README and user-facing strings
+  - [x] Document yt-dlp install requirement (on PATH for dev)
 - [ ] **Real download flow**
   - [ ] Remove `--help` placeholder; download with selected URL (and format when available)
   - [ ] Decode subprocess stdout/stderr as UTF-8 text before showing in UI

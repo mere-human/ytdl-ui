@@ -12,12 +12,12 @@ def run_btn_press(*args):
     if current_state == 'init':
         info_var.set('Getting info...')
         current_state = 'info'
-        ret = subprocess.run(["youtube-dl", "-F", url_var.get()], capture_output=True)
+        ret = subprocess.run(["yt-dlp", "-F", url_var.get()], capture_output=True)
     elif current_state == 'info':
         info_var.set('Downloading...')
         current_state = 'download'
-        # ret = subprocess.run(["youtube-dl", url_var.get()], capture_output=True)
-        ret = subprocess.run(["youtube-dl", '--help'], capture_output=True)
+        # ret = subprocess.run(["yt-dlp", url_var.get()], capture_output=True)
+        ret = subprocess.run(["yt-dlp", '--help'], capture_output=True)
         current_state = 'init'
 
     if ret.returncode != 0:

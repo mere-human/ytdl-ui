@@ -1,4 +1,4 @@
-# AGENTS.md
+# Agent guide
 
 Guidance for AI coding agents working on **ytdl-ui** — a cross-platform desktop UI for downloading YouTube videos via **yt-dlp**.
 
@@ -14,23 +14,7 @@ Guidance for AI coding agents working on **ytdl-ui** — a cross-platform deskto
 
 The app is early-stage. Current flow: enter URL → **check** (lists formats via `-F`) → **download**. The UI is synchronous today and blocks during subprocess calls.
 
-## Product goals
-
-Agents should work toward completing the full feature list in `README.md`:
-
-1. **Format selection** — parse `-F` output and let the user pick a format before download
-2. **Non-blocking UI** — run yt-dlp in background threads/processes; never freeze the main loop
-3. **Info panel** — scrollable, word-wrapped text; live status updates during download
-4. **Output folder** — browse/select download directory
-5. **Error styling** — visually distinguish errors from normal output
-6. **Subtitles** — optional subtitle download
-7. **Thumbnail** — show video thumbnail when info is fetched
-8. **Download button state** — disable when URL invalid, download in progress, etc.
-9. **Multiple downloads** — queue or parallel downloads (design when implementing)
-
-Also migrate from **youtube-dl** to **yt-dlp** everywhere (CLI invocations, docs, error messages).
-
-Distribution target: **PyInstaller** standalone executables for Windows, macOS, and Linux.
+Work is tracked in **[TASKS.md](TASKS.md)** (grouped by priority). Distribution target: **PyInstaller** standalone executables for Windows, macOS, and Linux.
 
 ## Architecture
 
@@ -120,23 +104,17 @@ Add tests alongside new features; do not leave behavior untested when logic is e
 - **Errors** — surface yt-dlp stderr to the user; reset state to `init` on failure.
 - **Commits** — only when the user asks; follow repo message style (short imperative: "Add state", "Integrate youtube-dl").
 
-## Known issues (as of initial AGENTS.md)
+## Known issues
 
-- `subprocess.run` blocks the UI during check/download.
-- Download path uses `--help` placeholder instead of real download (remove when implementing download).
-- Subprocess output may be `bytes`; decode before setting `StringVar`.
-- `info_label` is a single label — unsuitable for long format lists (needs scroll + wrap).
-- No format picker; user cannot choose from `-F` output.
-- No output directory selection.
-- Backend still references `youtube-dl` in code — migrate to `yt-dlp`.
+Outstanding fixes are listed as open items in **[TASKS.md](TASKS.md)** (especially P1–P3). When an item is completed, mark it there and remove or update any stale notes here.
 
 ## Agent workflow
 
-1. Read `README.md` TODO and this file before large changes.
-2. Prefer one TODO item (or a coherent subset) per change set.
+1. Read **[TASKS.md](TASKS.md)** and this file before large changes.
+2. Prefer one task (or a coherent subset) from the highest-priority open group.
 3. Extract testable logic from Tk handlers when adding tests.
 4. After UI changes, verify manually: resize window, empty URL, invalid URL, long format list.
-5. Do not add markdown docs the user did not request (except maintaining this file and README when behavior changes).
+5. Do not add markdown docs the user did not request (except maintaining [TASKS.md](TASKS.md), this file, and README when behavior changes).
 
 ## Out of scope unless asked
 

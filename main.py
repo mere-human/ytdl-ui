@@ -7,28 +7,40 @@ import subprocess
 
 current_state = 'init'
 
+def run_download(*args):
+    return subprocess.run(
+        ["yt-dlp", *args],
+        capture_output=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+
+def refresh_ui():
+    root.update_idletasks()
+
 def run_btn_press(*args):
     global current_state
     if current_state == 'init':
         info_var.set('Getting info...')
+        refresh_ui()
         current_state = 'info'
-        ret = subprocess.run(["yt-dlp", "-F", url_var.get()], capture_output=True)
+        ret = run_download("-F", url_var.get())
+        if ret.returncode != 0:
+            info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
+            current_state = 'init'
+        else:
+            info_var.set(ret.stdout)
+            run_btn_var.set("download")
     elif current_state == 'info':
         info_var.set('Downloading...')
-        current_state = 'download'
-        # ret = subprocess.run(["yt-dlp", url_var.get()], capture_output=True)
-        ret = subprocess.run(["yt-dlp", '--help'], capture_output=True)
-        current_state = 'init'
-
-    if ret.returncode != 0:
-        info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
-        current_state = 'init'
-    else:
-        info_var.set(ret.stdout)
-        if current_state == 'info':
-            run_btn_var.set("download")
+        refresh_ui()
+        ret = run_download(url_var.get())
+        if ret.returncode != 0:
+            info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
         else:
-            run_btn_var.set("check")
+            info_var.set(ret.stdout if ret.stdout else 'Download complete.')
+        current_state = 'init'
+        run_btn_var.set("check")
 
 
 root = Tk()

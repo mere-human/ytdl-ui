@@ -14,10 +14,10 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [x] Replace all `youtube-dl` CLI invocations with `yt-dlp`
   - [x] Update README and user-facing strings
   - [x] Document yt-dlp install requirement (on PATH for dev)
-- [ ] **Real download flow**
-  - [ ] Remove `--help` placeholder; download with selected URL (and format when available)
-  - [ ] Decode subprocess stdout/stderr as UTF-8 text before showing in UI
-  - [ ] Reset app state to `init` on failure; surface stderr to the user
+- [x] **Real download flow**
+  - [x] Remove `--help` placeholder; download with selected URL (and format when available)
+  - [x] Decode subprocess stdout/stderr as UTF-8 text before showing in UI
+  - [x] Reset app state to `init` on failure; surface stderr to the user
 - [ ] **Non-blocking UI**
   - [ ] Run check and download off the main thread (`threading` or `Popen` + polling)
   - [ ] Update UI only via `root.after(...)` from worker threads

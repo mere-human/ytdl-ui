@@ -63,9 +63,9 @@ python main.py
 
 ### Dependencies
 
-There is no `requirements.txt` yet. When adding third-party packages:
+Runtime dependencies are listed in `requirements.txt`. When adding third-party packages:
 
-- Add `requirements.txt` (or `pyproject.toml` if the project outgrows a single file)
+- Add to `requirements.txt` (or migrate to `pyproject.toml` if the project outgrows a single file)
 - Pin reasonable versions
 - Keep runtime deps minimal (stdlib + yt-dlp if ever embedded as a library — today it's CLI-only)
 
@@ -115,6 +115,10 @@ Outstanding fixes are listed as open items in **[TASKS.md](TASKS.md)** (especial
 3. Extract testable logic from Tk handlers when adding tests.
 4. After UI changes, verify manually: resize window, empty URL, invalid URL, long format list.
 5. Do not add markdown docs the user did not request (except maintaining [TASKS.md](TASKS.md), this file, and README when behavior changes).
+6. **Keep docs in sync** — after completing a task or fixing a bug, update the relevant docs in the same change:
+   - Mark items done in **[TASKS.md](TASKS.md)** (or add new items if work was unplanned).
+   - Update **[README.md](README.md)** when user-facing behavior, prerequisites, or usage steps change.
+   - Update this file (**AGENTS.md**) when architecture, conventions, or workflow rules change.
 
 ## Out of scope unless asked
 

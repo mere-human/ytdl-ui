@@ -97,9 +97,10 @@ Optional polish after the core flow works.
 
 Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 
-- [ ] **Dependencies**
-  - [ ] Add `requirements.txt` (or `pyproject.toml` when warranted)
-  - [ ] Pin reasonable versions; keep runtime deps minimal
+- [x] **Dependencies**
+  - [x] Add `requirements.txt` (or `pyproject.toml` when warranted)
+  - [x] Pin reasonable versions; keep runtime deps minimal
+  - [ ] Use venv
 - [ ] **Testing**
   - [ ] Set up pytest under `tests/`
   - [ ] Unit tests: format parsing, state transitions, URL validation, arg building

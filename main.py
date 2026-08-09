@@ -8,15 +8,25 @@ import subprocess
 current_state = 'init'
 
 def run_download(*args):
-    return subprocess.run(
-        ["yt-dlp", *args],
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace",
-    )
+    try:
+        return subprocess.run(
+            ["yt-dlp", *args],
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError:
+        return None
 
 def refresh_ui():
     root.update_idletasks()
+
+YT_DLP_NOT_FOUND = (
+    'Error: yt-dlp not found. Install it with:\n'
+    '  pip install -r requirements.txt\n'
+    'or visit https://github.com/yt-dlp/yt-dlp#installation'
+)
+
 
 def run_btn_press(*args):
     global current_state
@@ -25,7 +35,10 @@ def run_btn_press(*args):
         refresh_ui()
         current_state = 'info'
         ret = run_download("-F", url_var.get())
-        if ret.returncode != 0:
+        if ret is None:
+            info_var.set(YT_DLP_NOT_FOUND)
+            current_state = 'init'
+        elif ret.returncode != 0:
             info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
             current_state = 'init'
         else:
@@ -35,7 +48,9 @@ def run_btn_press(*args):
         info_var.set('Downloading...')
         refresh_ui()
         ret = run_download(url_var.get())
-        if ret.returncode != 0:
+        if ret is None:
+            info_var.set(YT_DLP_NOT_FOUND)
+        elif ret.returncode != 0:
             info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
         else:
             info_var.set(ret.stdout if ret.stdout else 'Download complete.')

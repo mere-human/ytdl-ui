@@ -18,6 +18,9 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [x] Remove `--help` placeholder; download with selected URL (and format when available)
   - [x] Decode subprocess stdout/stderr as UTF-8 text before showing in UI
   - [x] Reset app state to `init` on failure; surface stderr to the user
+- [x] **Graceful error when yt-dlp is missing**
+  - [x] Catch `FileNotFoundError` and show actionable message in the info panel
+  - [x] Add `requirements.txt` with yt-dlp dependency
 - [ ] **Non-blocking UI**
   - [ ] Run check and download off the main thread (`threading` or `Popen` + polling)
   - [ ] Update UI only via `root.after(...)` from worker threads

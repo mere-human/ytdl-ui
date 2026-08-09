@@ -31,6 +31,7 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [ ] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
   - [ ] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
   - [ ] Surface clear, actionable guidance in the UI when rate-limited
+- [ ] **Bug: UI is not focused after start**
 
 ---
 

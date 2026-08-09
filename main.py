@@ -139,7 +139,7 @@ def run_btn_press(*args):
 
 
 root = Tk()
-root.title("YTDL")
+root.title("Video Downloader")
 
 # |---------------------------------|
 # | frame                           |

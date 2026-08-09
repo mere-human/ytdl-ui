@@ -4,10 +4,19 @@
 from tkinter import *
 from tkinter import ttk
 import subprocess
+import threading
 
 current_state = 'init'
 
+YT_DLP_NOT_FOUND = (
+    'Error: yt-dlp not found. Install it with:\n'
+    '  pip install -r requirements.txt\n'
+    'or visit https://github.com/yt-dlp/yt-dlp#installation'
+)
+
+
 def run_download(*args):
+    """Run yt-dlp and return the CompletedProcess, or None if not found."""
     try:
         return subprocess.run(
             ["yt-dlp", *args],
@@ -18,44 +27,115 @@ def run_download(*args):
     except FileNotFoundError:
         return None
 
-def refresh_ui():
-    root.update_idletasks()
 
-YT_DLP_NOT_FOUND = (
-    'Error: yt-dlp not found. Install it with:\n'
-    '  pip install -r requirements.txt\n'
-    'or visit https://github.com/yt-dlp/yt-dlp#installation'
-)
+def run_download_live(*args, on_line=None):
+    """Run yt-dlp with live line-by-line output via on_line callback.
+
+    Returns (returncode, stderr) or None if yt-dlp not found.
+    """
+    try:
+        proc = subprocess.Popen(
+            ["yt-dlp", *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            encoding="utf-8",
+            errors="replace",
+        )
+    except FileNotFoundError:
+        return None
+
+    # Stream stdout line by line
+    for line in proc.stdout:
+        if on_line:
+            on_line(line)
+
+    proc.wait()
+    stderr = proc.stderr.read()
+    proc.stderr.close()
+    proc.stdout.close()
+    return proc.returncode, stderr
+
+
+def set_busy(busy):
+    """Disable/enable the button and entry during background work."""
+    state = 'disabled' if busy else 'normal'
+    run_btn.configure(state=state)
+    url_entry.configure(state=state)
+
+
+def on_check_complete(ret):
+    """Called on main thread when check finishes."""
+    global current_state
+    if ret is None:
+        info_var.set(YT_DLP_NOT_FOUND)
+        current_state = 'init'
+    elif ret.returncode != 0:
+        info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
+        current_state = 'init'
+    else:
+        info_var.set(ret.stdout)
+        run_btn_var.set("download")
+    set_busy(False)
+
+
+def on_download_complete(returncode, stderr):
+    """Called on main thread when download finishes."""
+    global current_state
+    if returncode != 0:
+        info_var.set(stderr if stderr else f'Unknown error: {returncode}')
+    else:
+        # Append completion message to current output
+        current = info_var.get()
+        if not current or current == 'Downloading...':
+            info_var.set('Download complete.')
+        else:
+            info_var.set(current.rstrip('\n') + '\nDownload complete.')
+    current_state = 'init'
+    run_btn_var.set("check")
+    set_busy(False)
+
+
+def run_check_in_thread(url):
+    """Run format check in background; post result to main thread."""
+    def worker():
+        ret = run_download("-F", url)
+        root.after(0, on_check_complete, ret)
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
+
+
+def run_download_in_thread(url):
+    """Run download in background with live output; post result to main thread."""
+    def worker():
+        def on_line(line):
+            # Schedule UI update on main thread with latest line
+            root.after(0, lambda l=line: info_var.set(l.rstrip('\n')))
+
+        result = run_download_live(url, on_line=on_line)
+        if result is None:
+            root.after(0, lambda: (
+                info_var.set(YT_DLP_NOT_FOUND),
+                set_busy(False),
+            ))
+        else:
+            returncode, stderr = result
+            root.after(0, on_download_complete, returncode, stderr)
+
+    thread = threading.Thread(target=worker, daemon=True)
+    thread.start()
 
 
 def run_btn_press(*args):
     global current_state
     if current_state == 'init':
         info_var.set('Getting info...')
-        refresh_ui()
         current_state = 'info'
-        ret = run_download("-F", url_var.get())
-        if ret is None:
-            info_var.set(YT_DLP_NOT_FOUND)
-            current_state = 'init'
-        elif ret.returncode != 0:
-            info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
-            current_state = 'init'
-        else:
-            info_var.set(ret.stdout)
-            run_btn_var.set("download")
+        set_busy(True)
+        run_check_in_thread(url_var.get())
     elif current_state == 'info':
         info_var.set('Downloading...')
-        refresh_ui()
-        ret = run_download(url_var.get())
-        if ret is None:
-            info_var.set(YT_DLP_NOT_FOUND)
-        elif ret.returncode != 0:
-            info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
-        else:
-            info_var.set(ret.stdout if ret.stdout else 'Download complete.')
-        current_state = 'init'
-        run_btn_var.set("check")
+        set_busy(True)
+        run_download_in_thread(url_var.get())
 
 
 root = Tk()
@@ -93,7 +173,7 @@ frame.rowconfigure(2, weight=2)
 info_frame.columnconfigure(0, weight=1)
 info_frame.rowconfigure(0, weight=1)
 
-for child in frame.winfo_children(): 
+for child in frame.winfo_children():
     child.grid_configure(padx=5, pady=5)
 
 url_entry.focus()

@@ -21,10 +21,12 @@ Core backend and UI responsiveness. Unblocks everything else.
 - [x] **Graceful error when yt-dlp is missing**
   - [x] Catch `FileNotFoundError` and show actionable message in the info panel
   - [x] Add `requirements.txt` with yt-dlp dependency
-- [ ] **Non-blocking UI**
-  - [ ] Run check and download off the main thread (`threading` or `Popen` + polling)
-  - [ ] Update UI only via `root.after(...)` from worker threads
-  - [ ] Keep window responsive during long operations
+- [x] **Non-blocking UI**
+  - [x] Run check and download off the main thread (`threading` or `Popen` + polling)
+  - [x] Update UI only via `root.after(...)` from worker threads
+  - [x] Keep window responsive during long operations
+  - [x] Stream live status output during download (`Popen` line-by-line)
+  - [x] Update UI with the status output live
 - [ ] **Bug: HTTP 429 on URL check**
   - [ ] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
   - [ ] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
@@ -48,6 +50,7 @@ Minimum viable “check → pick → download” experience.
   - [ ] Disable when URL is empty or invalid
   - [ ] Disable while check or download is in progress
   - [ ] Re-enable appropriately on success or error
+- [ ] **Stop/abort button**
 
 ---
 

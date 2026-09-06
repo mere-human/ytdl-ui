@@ -46,6 +46,12 @@ Notes:
   Settings are stored in `%LOCALAPPDATA%\ytdl-ui\settings.json`
   and logs in `%TEMP%\ytdl-ui\`; delete those too if you like.
 
+If `import tk` fails on Mac with "ModuleNotFoundError: No module named '_tkinter'", install Tkinter:
+```bash
+brew install python-tk
+```
+
+
 ## Usage
 
 1. Start the app

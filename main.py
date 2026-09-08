@@ -176,7 +176,22 @@ info_frame.rowconfigure(0, weight=1)
 for child in frame.winfo_children():
     child.grid_configure(padx=5, pady=5)
 
-url_entry.focus()
+def focus_window():
+    """Bring the app window to the foreground and focus the URL entry.
+
+    Just calling widget.focus() sets focus within the app but does not
+    guarantee the OS raises the window to the front on launch (notably on
+    macOS/Windows). Temporarily setting topmost + lift() forces it forward.
+    """
+    root.lift()
+    root.attributes('-topmost', True)
+    # Drop topmost right after so the window doesn't stay pinned above others.
+    root.after(0, lambda: root.attributes('-topmost', False))
+    root.focus_force()
+    url_entry.focus_set()
+
+
 root.bind("<Return>", run_btn_press)
+root.after(0, focus_window)
 
 root.mainloop()

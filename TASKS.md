@@ -32,10 +32,10 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [x] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
   - [x] Surface clear, actionable guidance in the UI when rate-limited
 - [x] **Bug: UI is not focused after start**
-- [ ] **Use a virtual environment**
-  - [ ] Document creating/activating a venv in README (`python -m venv .venv`)
-  - [ ] Note the required Python version — yt-dlp needs a newer Python than 3.10 for downloads to work; pin/document the minimum
-  - [ ] Ensure `pip install -r requirements.txt` targets the venv
+- [x] **Use a virtual environment**
+  - [x] Document creating/activating a venv in README (`python -m venv .venv`)
+  - [x] Note the required Python version — yt-dlp needs a newer Python than 3.10 for downloads to work; pin/document the minimum (3.11+; also pinned in `.python-version`)
+  - [x] Ensure `pip install -r requirements.txt` targets the venv
   - Moved up from P6: without this, downloads fail on Python 3.10 and can't be tested.
 
 ---

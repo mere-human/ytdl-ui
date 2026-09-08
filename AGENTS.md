@@ -37,8 +37,14 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 - Use **`yt-dlp`** as the only backend (not youtube-dl).
 - Invoke via `subprocess` with explicit args; avoid shell=True.
 - Decode stdout/stderr as text (`encoding="utf-8", errors="replace"`).
-- Assume yt-dlp is on `PATH` for dev; document install steps in README when changed.
-- For PyInstaller builds, consider bundling yt-dlp or documenting how users obtain it alongside the exe.
+- Prefer the **venv's** `yt-dlp` and `deno` (resolved next to `sys.executable`),
+  falling back to `PATH`; this keeps the toolchain project-local.
+- **JS runtime**: YouTube signature/challenge solving needs a JavaScript
+  runtime. `deno` is a `requirements.txt` dependency (installed into the venv);
+  `main.py` passes `--js-runtimes deno:<venv>/bin/deno` explicitly so it works
+  regardless of PATH. yt-dlp only auto-enables deno, and Node additionally
+  needs `--remote-components ejs:github`, so deno is the simpler choice.
+- For PyInstaller builds, consider bundling yt-dlp (and deno) or documenting how users obtain them alongside the exe.
 
 ### UI (Tkinter)
 

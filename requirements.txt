@@ -1,1 +1,9 @@
+# Requires Python 3.11+ — yt-dlp installs on 3.10 but downloads fail there
+# (deprecated; cannot resolve YouTube signatures). See README.md.
+# Install into a virtual environment: python3.11 -m venv .venv
 yt-dlp>=2024.1.0
+
+# JavaScript runtime for YouTube signature/challenge solving, installed into
+# the venv so no system-wide runtime is needed. yt-dlp auto-uses deno; main.py
+# passes its venv path explicitly. See README.md.
+deno>=2.9.0

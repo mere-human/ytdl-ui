@@ -33,6 +33,16 @@ yt-dlp --version
 4. Press "Download"
 5. Find the file in the same folder as the script.
 
+### Rate limiting (HTTP 429)
+
+YouTube may rate-limit requests with `HTTP Error 429: Too Many Requests`.
+The app automatically retries with backoff and sleeps between requests to
+reduce this. If you still get rate limited, the info panel shows guidance:
+
+- Wait a few minutes before retrying.
+- Update yt-dlp: `pip install -U yt-dlp`
+- Avoid checking many URLs in quick succession.
+
 ## Development
 
 ```bash

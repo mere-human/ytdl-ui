@@ -27,11 +27,16 @@ Core backend and UI responsiveness. Unblocks everything else.
   - [x] Keep window responsive during long operations
   - [x] Stream live status output during download (`Popen` line-by-line)
   - [x] Update UI with the status output live
-- [ ] **Bug: HTTP 429 on URL check**
-  - [ ] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
-  - [ ] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
-  - [ ] Surface clear, actionable guidance in the UI when rate-limited
+- [x] **Bug: HTTP 429 on URL check**
+  - [x] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
+  - [x] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
+  - [x] Surface clear, actionable guidance in the UI when rate-limited
 - [x] **Bug: UI is not focused after start**
+- [ ] **Use a virtual environment**
+  - [ ] Document creating/activating a venv in README (`python -m venv .venv`)
+  - [ ] Note the required Python version — yt-dlp needs a newer Python than 3.10 for downloads to work; pin/document the minimum
+  - [ ] Ensure `pip install -r requirements.txt` targets the venv
+  - Moved up from P6: without this, downloads fail on Python 3.10 and can't be tested.
 
 ---
 
@@ -52,6 +57,10 @@ Minimum viable “check → pick → download” experience.
   - [ ] Disable while check or download is in progress
   - [ ] Re-enable appropriately on success or error
 - [ ] **Stop/abort button**
+- [ ] **Cookies from browser (for rate limits / auth)**
+  - [ ] Add a UI control to let the user opt in and choose a browser
+  - [ ] Pass `--cookies-from-browser <browser>` to yt-dlp when set
+  - [ ] Once available, re-add it as a suggestion in the HTTP 429 guidance
 
 ---
 
@@ -104,8 +113,9 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 - [x] **Dependencies**
   - [x] Add `requirements.txt` (or `pyproject.toml` when warranted)
   - [x] Pin reasonable versions; keep runtime deps minimal
-  - [ ] Use venv
+  - _venv moved to P1 (blocks running/testing downloads)._
 - [ ] **Testing**
+  - [ ] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
   - [ ] Set up pytest under `tests/`
   - [ ] Unit tests: format parsing, state transitions, URL validation, arg building
   - [ ] Mock subprocess for downloader success/failure/partial output

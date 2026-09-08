@@ -14,12 +14,37 @@ YT_DLP_NOT_FOUND = (
     'or visit https://github.com/yt-dlp/yt-dlp#installation'
 )
 
+RATE_LIMITED_MSG = (
+    'Rate limited by the server (HTTP 429: Too Many Requests).\n'
+    '\n'
+    'Try the following:\n'
+    '  - Wait a few minutes before retrying.\n'
+    '  - Update yt-dlp: pip install -U yt-dlp\n'
+    '  - Avoid checking many URLs in quick succession.'
+)
+
+# Options that reduce the chance of hitting HTTP 429 by retrying with
+# exponential backoff and sleeping between requests/retries.
+RATE_LIMIT_OPTS = [
+    "--retries", "10",
+    "--retry-sleep", "exp=1:120",
+    "--sleep-requests", "1",
+]
+
+
+def is_rate_limited(text):
+    """Return True if the given output looks like an HTTP 429 rate limit."""
+    if not text:
+        return False
+    lowered = text.lower()
+    return "429" in text or "too many requests" in lowered
+
 
 def run_download(*args):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     try:
         return subprocess.run(
-            ["yt-dlp", *args],
+            ["yt-dlp", *RATE_LIMIT_OPTS, *args],
             capture_output=True,
             encoding="utf-8",
             errors="replace",
@@ -35,7 +60,7 @@ def run_download_live(*args, on_line=None):
     """
     try:
         proc = subprocess.Popen(
-            ["yt-dlp", *args],
+            ["yt-dlp", *RATE_LIMIT_OPTS, *args],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             encoding="utf-8",
@@ -70,7 +95,10 @@ def on_check_complete(ret):
         info_var.set(YT_DLP_NOT_FOUND)
         current_state = 'init'
     elif ret.returncode != 0:
-        info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
+        if is_rate_limited(ret.stderr):
+            info_var.set(RATE_LIMITED_MSG)
+        else:
+            info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
         current_state = 'init'
     else:
         info_var.set(ret.stdout)
@@ -82,7 +110,10 @@ def on_download_complete(returncode, stderr):
     """Called on main thread when download finishes."""
     global current_state
     if returncode != 0:
-        info_var.set(stderr if stderr else f'Unknown error: {returncode}')
+        if is_rate_limited(stderr):
+            info_var.set(RATE_LIMITED_MSG)
+        else:
+            info_var.set(stderr if stderr else f'Unknown error: {returncode}')
     else:
         # Append completion message to current output
         current = info_var.get()

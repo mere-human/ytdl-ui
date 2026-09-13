@@ -132,6 +132,57 @@ def is_rate_limited(text):
     return "429" in text or "too many requests" in lowered
 
 
+# Label used for the default (no explicit -f) entry in the format picker.
+DEFAULT_FORMAT_LABEL = "best (default)"
+
+
+def parse_formats(output):
+    """Parse `yt-dlp -F` output into a list of (format_id, label) tuples.
+
+    yt-dlp's `-F` output has a header/separator block followed by one row per
+    format, each starting with the format id token. We skip everything up to
+    the dashed separator line, then take the first whitespace-delimited token
+    on each remaining non-empty line as the id and keep the rest as a
+    human-readable label. Ids can be non-numeric (e.g. "sb0", "233"), so we
+    don't assume digits — we just require a plausible first token followed by
+    more columns.
+    """
+    if not output:
+        return []
+
+    lines = output.splitlines()
+    formats = []
+    seen_separator = False
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            continue
+        # The separator is a run of dashes (possibly with spaces/box chars).
+        if not seen_separator:
+            if set(stripped) <= set("-\u2500 "):
+                seen_separator = True
+            continue
+        parts = stripped.split(None, 1)
+        if len(parts) < 2:
+            continue
+        fmt_id, rest = parts[0], parts[1]
+        # Skip stray header-ish lines that slipped past (no real id column).
+        if fmt_id.upper() == "ID":
+            continue
+        label = f"{fmt_id}  {rest}".rstrip()
+        formats.append((fmt_id, label))
+    return formats
+
+
+def selected_format_id():
+    """Return the chosen format id, or None for the default (best) entry."""
+    label = format_var.get()
+    if not label or label == DEFAULT_FORMAT_LABEL:
+        return None
+    # The id is the first whitespace-delimited token of the label.
+    return label.split(None, 1)[0]
+
+
 def run_download(*args):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
@@ -209,8 +260,29 @@ def on_check_complete(ret):
     else:
         log.info("on_check_complete: setting info label with %d chars of formats", len(ret.stdout or ""))
         info_var.set(ret.stdout)
+        populate_formats(ret.stdout)
         run_btn_var.set("download")
     set_busy(False)
+
+
+def populate_formats(output):
+    """Fill the format picker from `-F` output and show it."""
+    formats = parse_formats(output)
+    labels = [DEFAULT_FORMAT_LABEL] + [label for _id, label in formats]
+    format_combo.configure(values=labels)
+    format_var.set(DEFAULT_FORMAT_LABEL)
+    log.info("populate_formats: %d formats parsed", len(formats))
+    # Reveal the picker row now that we have formats to choose from.
+    format_label.grid()
+    format_combo.grid()
+
+
+def hide_formats():
+    """Reset and hide the format picker (used when returning to init)."""
+    format_var.set(DEFAULT_FORMAT_LABEL)
+    format_combo.configure(values=[DEFAULT_FORMAT_LABEL])
+    format_label.grid_remove()
+    format_combo.grid_remove()
 
 
 def on_download_complete(returncode, stderr):
@@ -230,6 +302,7 @@ def on_download_complete(returncode, stderr):
             info_var.set(current.rstrip('\n') + '\nDownload complete.')
     current_state = 'init'
     run_btn_var.set("check")
+    hide_formats()
     set_busy(False)
 
 
@@ -252,16 +325,19 @@ def run_check_in_thread(url):
     thread.start()
 
 
-def run_download_in_thread(url):
+def run_download_in_thread(url, fmt_id=None):
     """Run download in background with live output; post result to main thread."""
     def worker():
-        log.info("download worker: started for url=%r", url)
+        log.info("download worker: started for url=%r fmt=%r", url, fmt_id)
         def on_line(line):
             # Queue UI update on main thread with latest line
             _post(lambda l=line: info_var.set(l.rstrip('\n')))
 
+        # Pass an explicit format id when the user picked one; otherwise let
+        # yt-dlp use its default (best) selection.
+        args = (["-f", fmt_id] if fmt_id else []) + [url]
         try:
-            result = run_download_live(url, on_line=on_line)
+            result = run_download_live(*args, on_line=on_line)
         except Exception:
             log.exception("download worker: unexpected error")
             _post(lambda: (info_var.set("Unexpected error — see ytdl-ui.log"),
@@ -292,7 +368,7 @@ def run_btn_press(*args):
     elif current_state == 'info':
         info_var.set('Downloading...')
         set_busy(True)
-        run_download_in_thread(url_var.get())
+        run_download_in_thread(url_var.get(), selected_format_id())
 
 
 root = Tk()
@@ -312,6 +388,12 @@ url_var = StringVar()
 url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
 run_btn_var = StringVar(value="check")
 run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
+format_label = ttk.Label(frame, text="Format:")
+format_var = StringVar(value=DEFAULT_FORMAT_LABEL)
+format_combo = ttk.Combobox(
+    frame, textvariable=format_var, state="readonly",
+    values=[DEFAULT_FORMAT_LABEL],
+)
 info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
 info_var = StringVar()
 info_label = ttk.Label(info_frame, textvariable=info_var)
@@ -320,13 +402,19 @@ frame.grid(column=0, row=0, sticky=(N, W, E, S))
 url_label.grid(column=1, row=1, sticky=E)
 url_entry.grid(column=2, row=1, sticky=(W, E))
 run_btn.grid(column=3, row=1, sticky=W)
-info_frame.grid(column=1, row=2, columnspan=3, sticky=(N, W, E, S))
+format_label.grid(column=1, row=2, sticky=E)
+format_combo.grid(column=2, row=2, columnspan=2, sticky=(W, E))
+info_frame.grid(column=1, row=3, columnspan=3, sticky=(N, W, E, S))
 info_label.grid(column=0, row=0, sticky=(N, W, E, S))
+
+# The format picker starts hidden; it appears after a successful check.
+format_label.grid_remove()
+format_combo.grid_remove()
 
 root.columnconfigure(0, weight=1)
 root.rowconfigure(0, weight=1)
 frame.columnconfigure(2, weight=2)
-frame.rowconfigure(2, weight=2)
+frame.rowconfigure(3, weight=2)
 info_frame.columnconfigure(0, weight=1)
 info_frame.rowconfigure(0, weight=1)
 

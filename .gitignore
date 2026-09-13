@@ -162,6 +162,7 @@ cython_debug/
 # media formats we use for testing
 *.webm
 *.part
+*.m4a
 
 # Other
 .DS_Store

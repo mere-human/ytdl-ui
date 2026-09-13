@@ -65,8 +65,10 @@ Deactivate the venv when done with `deactivate`.
 1. Start the app: `python main.py`
 2. Paste the video URL e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ
 3. Press "Check"
-4. Press "Download"
-5. Find the file in the same folder as the script.
+4. (Optional) Pick a format from the **Format** dropdown that appears — leave
+   it on "best (default)" to let yt-dlp choose the best quality automatically.
+5. Press "Download"
+6. Find the file in the same folder as the script.
 
 ### Rate limiting (HTTP 429)
 

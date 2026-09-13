@@ -44,10 +44,14 @@ Core backend and UI responsiveness. Unblocks everything else.
 
 Minimum viable “check → pick → download” experience.
 
-- [ ] **Format selection**
-  - [ ] Parse `yt-dlp -F` output into a selectable list
-  - [ ] Let user pick a format before download
-  - [ ] Pass chosen format id to the download command
+- [x] **Format selection**
+  - [x] Parse `yt-dlp -F` output into a selectable list
+  - [x] Let user pick a format before download
+  - [x] Pass chosen format id to the download command
+  - [ ] _(optional, future)_ Handle video-only/audio-only picks: a single
+    video-only or audio-only format id downloads a silent or audio-only file.
+    Consider auto-combining (e.g. append `+bestaudio` to a video-only pick) or
+    warning the user before download.
 - [ ] **Output folder**
   - [ ] Add browse control for download directory
   - [ ] Pass output path to yt-dlp (`-o` or equivalent)

@@ -1,6 +1,14 @@
 # Task list
 
-Prioritized backlog for **ytdl-ui**. Agents: pick the next open item (or a coherent subset) from the highest priority group that has unfinished work. Mark items `[x]` when done.
+Prioritized backlog for **ytdl-ui**. Agents: pick the next open item (or a coherent subset) from the highest priority group that has unfinished work.
+
+**Status markers:**
+- `[ ]` — not started
+- `[~]` — in progress (work begun, but at least one subtask is still open)
+- `[✓]` — done (only mark a task `[✓]` when **every** subtask is also `[✓]`)
+
+Never mark a parent task `[✓]` while any of its subtasks remain unchecked — use
+`[~]` instead until they are all done.
 
 See also: [Agent guide](AGENTS.md) · [README](README.md)
 
@@ -10,32 +18,32 @@ See also: [Agent guide](AGENTS.md) · [README](README.md)
 
 Core backend and UI responsiveness. Unblocks everything else.
 
-- [x] **Migrate to yt-dlp**
-  - [x] Replace all `youtube-dl` CLI invocations with `yt-dlp`
-  - [x] Update README and user-facing strings
-  - [x] Document yt-dlp install requirement (on PATH for dev)
-- [x] **Real download flow**
-  - [x] Remove `--help` placeholder; download with selected URL (and format when available)
-  - [x] Decode subprocess stdout/stderr as UTF-8 text before showing in UI
-  - [x] Reset app state to `init` on failure; surface stderr to the user
-- [x] **Graceful error when yt-dlp is missing**
-  - [x] Catch `FileNotFoundError` and show actionable message in the info panel
-  - [x] Add `requirements.txt` with yt-dlp dependency
-- [x] **Non-blocking UI**
-  - [x] Run check and download off the main thread (`threading` or `Popen` + polling)
-  - [x] Update UI only via `root.after(...)` from worker threads
-  - [x] Keep window responsive during long operations
-  - [x] Stream live status output during download (`Popen` line-by-line)
-  - [x] Update UI with the status output live
-- [x] **Bug: HTTP 429 on URL check**
-  - [x] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
-  - [x] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
-  - [x] Surface clear, actionable guidance in the UI when rate-limited
-- [x] **Bug: UI is not focused after start**
-- [x] **Use a virtual environment**
-  - [x] Document creating/activating a venv in README (`python -m venv .venv`)
-  - [x] Note the required Python version — yt-dlp needs a newer Python than 3.10 for downloads to work; pin/document the minimum (3.11+; also pinned in `.python-version`)
-  - [x] Ensure `pip install -r requirements.txt` targets the venv
+- [✓] **Migrate to yt-dlp**
+  - [✓] Replace all `youtube-dl` CLI invocations with `yt-dlp`
+  - [✓] Update README and user-facing strings
+  - [✓] Document yt-dlp install requirement (on PATH for dev)
+- [✓] **Real download flow**
+  - [✓] Remove `--help` placeholder; download with selected URL (and format when available)
+  - [✓] Decode subprocess stdout/stderr as UTF-8 text before showing in UI
+  - [✓] Reset app state to `init` on failure; surface stderr to the user
+- [✓] **Graceful error when yt-dlp is missing**
+  - [✓] Catch `FileNotFoundError` and show actionable message in the info panel
+  - [✓] Add `requirements.txt` with yt-dlp dependency
+- [✓] **Non-blocking UI**
+  - [✓] Run check and download off the main thread (`threading` or `Popen` + polling)
+  - [✓] Update UI only via `root.after(...)` from worker threads
+  - [✓] Keep window responsive during long operations
+  - [✓] Stream live status output during download (`Popen` line-by-line)
+  - [✓] Update UI with the status output live
+- [✓] **Bug: HTTP 429 on URL check**
+  - [✓] Reproduce: paste a YouTube URL and check — `Unable to download webpage: HTTP Error 429: Too Many Requests`
+  - [✓] Investigate yt-dlp mitigations (update yt-dlp, cookies from browser, retries/sleep, user-agent)
+  - [✓] Surface clear, actionable guidance in the UI when rate-limited
+- [✓] **Bug: UI is not focused after start**
+- [✓] **Use a virtual environment**
+  - [✓] Document creating/activating a venv in README (`python -m venv .venv`)
+  - [✓] Note the required Python version — yt-dlp needs a newer Python than 3.10 for downloads to work; pin/document the minimum (3.11+; also pinned in `.python-version`)
+  - [✓] Ensure `pip install -r requirements.txt` targets the venv
   - Moved up from P6: without this, downloads fail on Python 3.10 and can't be tested.
 
 ---
@@ -44,24 +52,24 @@ Core backend and UI responsiveness. Unblocks everything else.
 
 Minimum viable “check → pick → download” experience.
 
-- [x] **Format selection**
-  - [x] Parse `yt-dlp -F` output into a selectable list
-  - [x] Let user pick a format before download
-  - [x] Pass chosen format id to the download command
-- [x] **Output folder**
-  - [x] Add browse control for download directory
-  - [x] Pass output path to yt-dlp (`-o` or equivalent)
-  - [x] Sensible default (e.g. current directory or user Downloads)
-  - [x] Show the currently selected folder in UI
-- [x] **Download button state**
-  - [x] Disable when URL is empty or invalid
-  - [x] Disable while check or download is in progress
-  - [x] Re-enable appropriately on success or error
-- [x] **Stop/abort button**
-  - [x] Stop button appears only during a download; cancels the running yt-dlp
+- [✓] **Format selection**
+  - [✓] Parse `yt-dlp -F` output into a selectable list
+  - [✓] Let user pick a format before download
+  - [✓] Pass chosen format id to the download command
+- [✓] **Output folder**
+  - [✓] Add browse control for download directory
+  - [✓] Pass output path to yt-dlp (`-o` or equivalent)
+  - [✓] Sensible default (e.g. current directory or user Downloads)
+  - [✓] Show the currently selected folder in UI
+- [✓] **Download button state**
+  - [✓] Disable when URL is empty or invalid
+  - [✓] Disable while check or download is in progress
+  - [✓] Re-enable appropriately on success or error
+- [✓] **Stop/abort button**
+  - [✓] Stop button appears only during a download; cancels the running yt-dlp
     process (`terminate()`, then `kill()` after a grace period).
-  - [x] Leaves partial `.part` files on disk and shows the path in the info panel.
-  - [x] Returns to the `info` state so the download can be retried without re-checking.
+  - [✓] Leaves partial `.part` files on disk and shows the path in the info panel.
+  - [✓] Returns to the `info` state so the download can be retried without re-checking.
 - [ ] **Cookies from browser (for rate limits / auth)**
   - [ ] Add a UI control to let the user opt in and choose a browser
   - [ ] Pass `--cookies-from-browser <browser>` to yt-dlp when set
@@ -132,14 +140,14 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - Prefer an incremental refactor (extract logic first, then rehome UI) over
     a big-bang rewrite, per AGENTS.md.
 
-- [x] **Dependencies**
-  - [x] Add `requirements.txt` (or `pyproject.toml` when warranted)
-  - [x] Pin reasonable versions; keep runtime deps minimal
+- [✓] **Dependencies**
+  - [✓] Add `requirements.txt` (or `pyproject.toml` when warranted)
+  - [✓] Pin reasonable versions; keep runtime deps minimal
   - _venv moved to P1 (blocks running/testing downloads)._
-- [ ] **Testing**
-  - [x] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
-  - [x] Set up pytest under `tests/` (`pytest.ini`, `requirements-dev.txt`)
-  - [x] Unit tests: format parsing, format-id extraction, rate-limit detection (`tests/test_formats.py`)
+- [~] **Testing**
+  - [✓] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
+  - [✓] Set up pytest under `tests/` (`pytest.ini`, `requirements-dev.txt`)
+  - [~] Unit tests: format parsing, format-id extraction, rate-limit detection (`tests/test_formats.py`)
     - [ ] Still to cover: state transitions, URL validation, arg building
   - [ ] Mock subprocess for downloader success/failure/partial output
   - [ ] Integration or smoke tests for UI/threading where practical

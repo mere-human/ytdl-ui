@@ -150,7 +150,10 @@ Outstanding fixes are listed as open items in **[TASKS.md](TASKS.md)** (especial
 4. After UI changes, also verify manually where tests can't reach: resize window, empty URL, invalid URL, long format list.
 5. Do not add markdown docs the user did not request (except maintaining [TASKS.md](TASKS.md), this file, and README when behavior changes).
 6. **Keep docs in sync** — after completing a task or fixing a bug, update the relevant docs in the same change:
-   - Mark items done in **[TASKS.md](TASKS.md)** (or add new items if work was unplanned).
+   - Mark items in **[TASKS.md](TASKS.md)** using its status markers — `[✓]`
+     done, `[~]` in progress, `[ ]` not started — and **never mark a task `[✓]`
+     while any of its subtasks are unchecked** (use `[~]`). Add new items if
+     work was unplanned.
    - Update **[README.md](README.md)** when user-facing behavior, prerequisites, or usage steps change.
    - Update this file (**AGENTS.md**) when architecture, conventions, or workflow rules change.
 

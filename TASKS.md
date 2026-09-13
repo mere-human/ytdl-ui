@@ -57,10 +57,10 @@ Minimum viable “check → pick → download” experience.
   - [x] Pass output path to yt-dlp (`-o` or equivalent)
   - [x] Sensible default (e.g. current directory or user Downloads)
   - [x] Show the currently selected folder in UI
-- [ ] **Download button state**
-  - [ ] Disable when URL is empty or invalid
-  - [ ] Disable while check or download is in progress
-  - [ ] Re-enable appropriately on success or error
+- [x] **Download button state**
+  - [x] Disable when URL is empty or invalid
+  - [x] Disable while check or download is in progress
+  - [x] Re-enable appropriately on success or error
 - [ ] **Stop/abort button**
 - [ ] **Cookies from browser (for rate limits / auth)**
   - [ ] Add a UI control to let the user opt in and choose a browser
@@ -114,6 +114,23 @@ Optional polish after the core flow works.
 ## P6 — Packaging & quality
 
 Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
+
+- [ ] **Refactor: separate UI from logic (separation of concerns)**
+  - Split the single `main.py` into a **presentation layer** and a
+    **domain/logic layer** so the two evolve independently — a classic
+    *separation of concerns* / layered (Model–View) design.
+  - [ ] Move pure, Tk-free logic (`parse_formats`, `format_id_from_label`,
+    `is_rate_limited`, `is_valid_url`, `output_template`/`output_args`,
+    `default_output_dir`, and the yt-dlp `subprocess` wrappers) into a
+    logic/core module (e.g. `core.py` or a `downloader/` package).
+  - [ ] Keep all Tk widget construction and callbacks in a UI module
+    (e.g. `ui.py`), depending on the core module — not the reverse.
+  - [ ] Reduce the `global current_state`/`_busy` usage by grouping app
+    state into a small class or dataclass (per AGENTS.md conventions).
+  - [ ] Keep `main.py` as a thin entry point that wires UI + core together.
+  - [ ] Update tests to import from the new module(s); no behavior change.
+  - Prefer an incremental refactor (extract logic first, then rehome UI) over
+    a big-bang rewrite, per AGENTS.md.
 
 - [x] **Dependencies**
   - [x] Add `requirements.txt` (or `pyproject.toml` when warranted)

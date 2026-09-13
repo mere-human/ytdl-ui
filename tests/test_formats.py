@@ -153,3 +153,29 @@ class TestDefaultOutputDir:
         monkeypatch.setenv("HOME", str(tmp_path))
         monkeypatch.setenv("USERPROFILE", str(tmp_path))
         assert main.default_output_dir() == str(tmp_path / "Downloads")
+
+
+class TestIsValidUrl:
+    def test_empty_or_none_is_invalid(self):
+        assert main.is_valid_url("") is False
+        assert main.is_valid_url(None) is False
+        assert main.is_valid_url("   ") is False
+
+    def test_plain_text_is_invalid(self):
+        assert main.is_valid_url("not a url") is False
+
+    def test_missing_scheme_is_invalid(self):
+        assert main.is_valid_url("youtube.com/watch?v=x") is False
+
+    def test_scheme_without_host_is_invalid(self):
+        assert main.is_valid_url("http://") is False
+
+    def test_non_http_scheme_is_invalid(self):
+        assert main.is_valid_url("ftp://host/file") is False
+
+    def test_http_and_https_with_host_are_valid(self):
+        assert main.is_valid_url("http://youtu.be/dQw4w9WgXcQ") is True
+        assert main.is_valid_url("https://www.youtube.com/watch?v=x") is True
+
+    def test_surrounding_whitespace_is_tolerated(self):
+        assert main.is_valid_url("  https://www.youtube.com/watch?v=x  ") is True

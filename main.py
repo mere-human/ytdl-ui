@@ -11,6 +11,7 @@ import shutil
 import subprocess
 import sys
 import threading
+import urllib.parse
 
 # --- Logging -------------------------------------------------------------
 # Logs go to stderr (visible in the launching terminal) and to ytdl-ui.log
@@ -26,6 +27,11 @@ logging.basicConfig(
 log = logging.getLogger("ytdl-ui")
 
 current_state = 'init'
+
+# Whether a check/download is currently running. The run button is enabled
+# only when we're idle AND the URL looks valid; tracking busy separately lets
+# both the worker lifecycle and the URL trace recompute that condition.
+_busy = False
 
 # --- Thread -> UI bridge -------------------------------------------------
 # Cross-thread `root.after(...)` calls are not reliably delivered on macOS Tk
@@ -223,6 +229,20 @@ def output_args(out_dir):
     return ["-o", template] if template else []
 
 
+def is_valid_url(url):
+    """Return True if the text looks like a usable http(s) URL.
+
+    Deliberately permissive: we only gate the download button on obvious
+    non-URLs (empty text, missing scheme, no host) rather than trying to
+    validate that a page exists — yt-dlp itself reports unsupported/unreachable
+    URLs after a check. Pure (no Tk) so it can be unit-tested.
+    """
+    if not url:
+        return False
+    parsed = urllib.parse.urlparse(url.strip())
+    return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
 def run_download(*args):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
@@ -278,11 +298,31 @@ def run_download_live(*args, on_line=None):
 
 
 def set_busy(busy):
-    """Disable/enable the button and entry during background work."""
+    """Disable/enable inputs during background work and refresh button state."""
+    global _busy
+    _busy = busy
     state = 'disabled' if busy else 'normal'
-    run_btn.configure(state=state)
     url_entry.configure(state=state)
     browse_btn.configure(state=state)
+    # The run button and format picker are gated together in one place.
+    update_run_btn_state()
+
+
+def update_run_btn_state(*_args):
+    """Sync the run button and format picker to the current input state.
+
+    Bound to the URL variable (so it recomputes as the user types) and called
+    from set_busy (so it reflects check/download progress). The action is only
+    valid when idle AND the URL looks valid, so gate both controls on that:
+
+    - run button: 'normal' when actionable, else 'disabled'.
+    - format picker: 'readonly' (pick-only, not typeable) when actionable,
+      else 'disabled' — e.g. it must not stay usable if the user clears the
+      URL after a check. Never 'normal', which would let the user type into it.
+    """
+    ok = (not _busy) and is_valid_url(url_var.get())
+    run_btn.configure(state='normal' if ok else 'disabled')
+    format_combo.configure(state='readonly' if ok else 'disabled')
 
 
 def choose_output_dir():
@@ -413,6 +453,12 @@ def run_download_in_thread(url, fmt_id=None, out_dir=None):
 def run_btn_press(*args):
     global current_state
     log.info("run_btn_press: state=%s url=%r", current_state, url_var.get())
+    # Guard the action itself: the <Return> key binding fires even when the
+    # button is disabled, so re-check validity/busy here.
+    if _busy or not is_valid_url(url_var.get()):
+        log.info("run_btn_press: ignored (busy=%s, url valid=%s)",
+                 _busy, is_valid_url(url_var.get()))
+        return
     if current_state == 'init':
         info_var.set('Getting info...')
         current_state = 'info'
@@ -424,19 +470,19 @@ def run_btn_press(*args):
         run_download_in_thread(url_var.get(), selected_format_id(), output_dir_var.get())
 
 
-def main():
-    """Build the Tk UI and run the event loop.
+def build_ui(root):
+    """Construct all widgets and lay them out on the given Tk root.
 
-    Widgets are created here (not at import time) and published as globals so
-    the module can be imported for unit testing without launching Tk. The
-    handler functions above reference these names as globals.
+    Split out from main() (which owns the event loop) so tests can build the
+    real UI on a headless root and assert widget behavior — e.g. that set_busy
+    disables the format picker — without duplicating widget construction or
+    calling mainloop().
     """
-    global root, frame, url_label, url_var, url_entry
+    global frame, url_label, url_var, url_entry
     global run_btn_var, run_btn, format_label, format_var, format_combo
     global output_dir_label, output_dir_var, output_dir_value, browse_btn
     global info_frame, info_var, info_label
 
-    root = Tk()
     root.title("Video Downloader")
 
     # |---------------------------------------|
@@ -457,6 +503,8 @@ def main():
     url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
     run_btn_var = StringVar(value="check")
     run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
+    # Recompute the run button's enabled state as the URL text changes.
+    url_var.trace_add("write", update_run_btn_state)
     format_label = ttk.Label(frame, text="Format:")
     format_var = StringVar(value=DEFAULT_FORMAT_LABEL)
     format_combo = ttk.Combobox(
@@ -500,6 +548,23 @@ def main():
 
     for child in frame.winfo_children():
         child.grid_configure(padx=5, pady=5)
+
+    # URL starts empty, so the run button starts disabled.
+    update_run_btn_state()
+
+
+def main():
+    """Build the Tk UI and run the event loop.
+
+    Widgets are created in build_ui() (not at import time) and published as
+    globals so the module can be imported for unit testing without launching
+    Tk. The handler functions above reference these names as globals.
+    """
+    global root
+
+    root = Tk()
+    build_ui(root)
+
 
     def focus_window():
         """Bring the app window to the foreground and focus the URL entry.

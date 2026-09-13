@@ -3,6 +3,7 @@
 
 from tkinter import *
 from tkinter import ttk
+from tkinter import filedialog
 import logging
 import os
 import queue
@@ -190,6 +191,38 @@ def selected_format_id():
     return format_id_from_label(format_var.get())
 
 
+def default_output_dir():
+    """Return a sensible default download directory.
+
+    Prefer the user's Downloads folder when it exists (the conventional place
+    for downloads), otherwise fall back to the current working directory. Pure
+    (no Tk) so it can be unit-tested.
+    """
+    downloads = os.path.join(os.path.expanduser("~"), "Downloads")
+    if os.path.isdir(downloads):
+        return downloads
+    return os.getcwd()
+
+
+def output_template(out_dir):
+    """Build the yt-dlp `-o` output template for a target directory.
+
+    yt-dlp expects a filename template; join the chosen directory with the
+    default `%(title)s [%(id)s].%(ext)s` pattern so files land in that folder
+    with readable names. Returns None when no directory is given (let yt-dlp
+    use its own default). Pure (no Tk) so it can be unit-tested.
+    """
+    if not out_dir:
+        return None
+    return os.path.join(out_dir, "%(title)s [%(id)s].%(ext)s")
+
+
+def output_args(out_dir):
+    """Return yt-dlp args (['-o', template]) for a directory, or [] if none."""
+    template = output_template(out_dir)
+    return ["-o", template] if template else []
+
+
 def run_download(*args):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
@@ -249,6 +282,18 @@ def set_busy(busy):
     state = 'disabled' if busy else 'normal'
     run_btn.configure(state=state)
     url_entry.configure(state=state)
+    browse_btn.configure(state=state)
+
+
+def choose_output_dir():
+    """Open a folder picker and update the selected download directory."""
+    chosen = filedialog.askdirectory(
+        title="Choose download folder",
+        initialdir=output_dir_var.get() or default_output_dir(),
+    )
+    if chosen:
+        output_dir_var.set(chosen)
+        log.info("choose_output_dir: set to %r", chosen)
 
 
 def on_check_complete(ret):
@@ -332,17 +377,18 @@ def run_check_in_thread(url):
     thread.start()
 
 
-def run_download_in_thread(url, fmt_id=None):
+def run_download_in_thread(url, fmt_id=None, out_dir=None):
     """Run download in background with live output; post result to main thread."""
     def worker():
-        log.info("download worker: started for url=%r fmt=%r", url, fmt_id)
+        log.info("download worker: started for url=%r fmt=%r out_dir=%r", url, fmt_id, out_dir)
         def on_line(line):
             # Queue UI update on main thread with latest line
             _post(lambda l=line: info_var.set(l.rstrip('\n')))
 
         # Pass an explicit format id when the user picked one; otherwise let
-        # yt-dlp use its default (best) selection.
-        args = (["-f", fmt_id] if fmt_id else []) + [url]
+        # yt-dlp use its default (best) selection. Add an `-o` template when a
+        # target directory is set so files land in the chosen folder.
+        args = (["-f", fmt_id] if fmt_id else []) + output_args(out_dir) + [url]
         try:
             result = run_download_live(*args, on_line=on_line)
         except Exception:
@@ -375,7 +421,7 @@ def run_btn_press(*args):
     elif current_state == 'info':
         info_var.set('Downloading...')
         set_busy(True)
-        run_download_in_thread(url_var.get(), selected_format_id())
+        run_download_in_thread(url_var.get(), selected_format_id(), output_dir_var.get())
 
 
 def main():
@@ -387,20 +433,23 @@ def main():
     """
     global root, frame, url_label, url_var, url_entry
     global run_btn_var, run_btn, format_label, format_var, format_combo
+    global output_dir_label, output_dir_var, output_dir_value, browse_btn
     global info_frame, info_var, info_label
 
     root = Tk()
     root.title("Video Downloader")
 
-    # |---------------------------------|
-    # | frame                           |
-    # |---------------------------------|
-    # | url_label | url_entry | run_btn |
-    # |---------------------------------|
-    # | format_label | format_combo     |
-    # |---------------------------------|
-    # | info_frame + info_label         |
-    # |---------------------------------|
+    # |---------------------------------------|
+    # | frame                                 |
+    # |---------------------------------------|
+    # | url_label    | url_entry   | run_btn  |
+    # |---------------------------------------|
+    # | format_label | format_combo          |
+    # |---------------------------------------|
+    # | "Folder:"    | output_dir_value | browse_btn |
+    # |---------------------------------------|
+    # | info_frame + info_label               |
+    # |---------------------------------------|
 
     frame = ttk.Frame(root, padding="3 3 12 12")
     url_label = ttk.Label(frame, text="URL:")
@@ -414,6 +463,14 @@ def main():
         frame, textvariable=format_var, state="readonly",
         values=[DEFAULT_FORMAT_LABEL],
     )
+    output_dir_label = ttk.Label(frame, text="Folder:")
+    output_dir_var = StringVar(value=default_output_dir())
+    # Show the currently selected folder; readonly entry so long paths scroll
+    # and can be copied but not hand-edited (use Browse to change it).
+    output_dir_value = ttk.Entry(
+        frame, textvariable=output_dir_var, state="readonly",
+    )
+    browse_btn = ttk.Button(frame, text="Browse...", command=choose_output_dir)
     info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
     info_var = StringVar()
     info_label = ttk.Label(info_frame, textvariable=info_var)
@@ -424,7 +481,10 @@ def main():
     run_btn.grid(column=3, row=1, sticky=W)
     format_label.grid(column=1, row=2, sticky=E)
     format_combo.grid(column=2, row=2, columnspan=2, sticky=(W, E))
-    info_frame.grid(column=1, row=3, columnspan=3, sticky=(N, W, E, S))
+    output_dir_label.grid(column=1, row=3, sticky=E)
+    output_dir_value.grid(column=2, row=3, sticky=(W, E))
+    browse_btn.grid(column=3, row=3, sticky=W)
+    info_frame.grid(column=1, row=4, columnspan=3, sticky=(N, W, E, S))
     info_label.grid(column=0, row=0, sticky=(N, W, E, S))
 
     # The format picker starts hidden; it appears after a successful check.
@@ -434,7 +494,7 @@ def main():
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
     frame.columnconfigure(2, weight=2)
-    frame.rowconfigure(3, weight=2)
+    frame.rowconfigure(4, weight=2)
     info_frame.columnconfigure(0, weight=1)
     info_frame.rowconfigure(0, weight=1)
 

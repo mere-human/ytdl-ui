@@ -52,10 +52,11 @@ Minimum viable “check → pick → download” experience.
     video-only or audio-only format id downloads a silent or audio-only file.
     Consider auto-combining (e.g. append `+bestaudio` to a video-only pick) or
     warning the user before download.
-- [ ] **Output folder**
-  - [ ] Add browse control for download directory
-  - [ ] Pass output path to yt-dlp (`-o` or equivalent)
-  - [ ] Sensible default (e.g. current directory or user Downloads)
+- [x] **Output folder**
+  - [x] Add browse control for download directory
+  - [x] Pass output path to yt-dlp (`-o` or equivalent)
+  - [x] Sensible default (e.g. current directory or user Downloads)
+  - [x] Show the currently selected folder in UI
 - [ ] **Download button state**
   - [ ] Disable when URL is empty or invalid
   - [ ] Disable while check or download is in progress

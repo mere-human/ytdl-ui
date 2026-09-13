@@ -2,8 +2,10 @@
 
 main.py guards its Tk construction under `if __name__ == "__main__"`, so it can
 be imported here without launching a UI. These tests cover format parsing,
-format-id extraction, and rate-limit detection.
+format-id extraction, rate-limit detection, and output-path building.
 """
+
+import os
 
 import main
 
@@ -108,3 +110,46 @@ class TestIsRateLimited:
     def test_empty_or_none_not_flagged(self):
         assert main.is_rate_limited("") is False
         assert main.is_rate_limited(None) is False
+
+
+class TestOutputTemplate:
+    def test_none_or_empty_returns_none(self):
+        assert main.output_template(None) is None
+        assert main.output_template("") is None
+
+    def test_joins_dir_with_default_pattern(self):
+        template = main.output_template(os.path.join("home", "user", "Downloads"))
+        assert template == os.path.join(
+            "home", "user", "Downloads", "%(title)s [%(id)s].%(ext)s"
+        )
+
+
+class TestOutputArgs:
+    def test_none_or_empty_returns_empty_list(self):
+        assert main.output_args(None) == []
+        assert main.output_args("") == []
+
+    def test_builds_dash_o_args(self):
+        args = main.output_args("/tmp/dl")
+        assert args[0] == "-o"
+        assert args[1] == main.output_template("/tmp/dl")
+
+
+class TestDefaultOutputDir:
+    def test_returns_existing_directory(self):
+        # Whatever it picks (Downloads or cwd), it must be a real directory.
+        assert os.path.isdir(main.default_output_dir())
+
+    def test_falls_back_to_cwd_without_downloads(self, monkeypatch, tmp_path):
+        # Point HOME at a dir with no Downloads folder -> fall back to cwd.
+        monkeypatch.setenv("HOME", str(tmp_path))
+        # expanduser on some platforms also consults USERPROFILE; align it.
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        monkeypatch.chdir(tmp_path)
+        assert main.default_output_dir() == os.getcwd()
+
+    def test_prefers_downloads_when_present(self, monkeypatch, tmp_path):
+        (tmp_path / "Downloads").mkdir()
+        monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setenv("USERPROFILE", str(tmp_path))
+        assert main.default_output_dir() == str(tmp_path / "Downloads")

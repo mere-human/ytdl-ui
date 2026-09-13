@@ -67,8 +67,11 @@ Deactivate the venv when done with `deactivate`.
 3. Press "Check"
 4. (Optional) Pick a format from the **Format** dropdown that appears — leave
    it on "best (default)" to let yt-dlp choose the best quality automatically.
-5. Press "Download"
-6. Find the file in the same folder as the script.
+5. (Optional) Choose where to save via the **Folder** row — it defaults to your
+   Downloads folder (or the current directory if that doesn't exist). Click
+   **Browse...** to pick another folder.
+6. Press "Download"
+7. Find the file in the selected folder.
 
 ### Rate limiting (HTTP 429)
 

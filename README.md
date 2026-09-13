@@ -91,3 +91,16 @@ python main.py
 ```
 
 Agent and contributor notes: **[AGENTS.md](AGENTS.md)**.
+
+### Tests
+
+Unit tests use [pytest](https://pytest.org). Install the dev dependencies into
+the activated venv and run the suite from the repo root:
+
+```bash
+pip install -r requirements-dev.txt
+pytest
+```
+
+`main.py` builds its UI in `main()` (guarded by `if __name__ == "__main__":`),
+so tests import it without launching a window. Tests live in `tests/`.

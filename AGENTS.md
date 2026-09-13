@@ -93,11 +93,20 @@ Full test coverage is expected over time:
 | **Downloader** | Mock `subprocess` / `Popen`; test success, non-zero exit, timeout, partial output |
 | **UI** | Integration or smoke tests where practical (e.g. `pytest` + threading checks); avoid brittle pixel tests |
 
-Use **pytest**. Place tests in `tests/`. Run with:
+Use **pytest**. Place tests in `tests/`. Test/dev dependencies live in
+`requirements-dev.txt` (keeps runtime `requirements.txt` minimal); install and
+run inside the activated venv:
 
 ```bash
+pip install -r requirements-dev.txt
 pytest
 ```
+
+`main.py` guards its Tk construction under `if __name__ == "__main__":` (UI is
+built in `main()`), so the module can be imported in tests without launching a
+window. Keep new logic in pure, Tk-free functions (as with `parse_formats`,
+`format_id_from_label`, `is_rate_limited`) so it stays unit-testable. Current
+coverage lives in `tests/test_formats.py`.
 
 Add tests alongside new features; do not leave behavior untested when logic is extractable from Tk callbacks.
 

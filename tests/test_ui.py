@@ -91,3 +91,58 @@ class TestRunButtonState:
         main.url_var.set("https://youtu.be/dQw4w9WgXcQ")
         main.set_busy(True)
         assert _state(main.run_btn) == "disabled"
+
+
+def _is_gridded(widget):
+    """True if the widget is currently placed by grid (not grid_remove()d).
+
+    winfo_manager() returns 'grid' while mapped and '' after grid_remove(),
+    without needing the event loop to run.
+    """
+    return widget.winfo_manager() == "grid"
+
+
+class TestStopButton:
+    def test_hidden_initially(self, app_root):
+        assert _is_gridded(main.stop_btn) is False
+
+    def test_shown_by_show_stop(self, app_root):
+        main.show_stop()
+        assert _is_gridded(main.stop_btn) is True
+        assert _state(main.stop_btn) == "normal"
+
+    def test_hidden_by_hide_stop(self, app_root):
+        main.show_stop()
+        main.hide_stop()
+        assert _is_gridded(main.stop_btn) is False
+
+    def test_stays_visible_while_busy(self, app_root):
+        # Stop must remain usable during a download, unlike the other inputs.
+        main.show_stop()
+        main.set_busy(True)
+        assert _is_gridded(main.stop_btn) is True
+
+    def test_press_disables_button(self, app_root):
+        # With no live process, stop_active_proc() returns False quickly; the
+        # button should still be disabled to prevent double-clicks.
+        main.show_stop()
+        main.stop_btn_press()
+        assert _state(main.stop_btn) == "disabled"
+
+
+class TestCancelledCompletion:
+    def test_returns_to_info_state_and_hides_stop(self, app_root):
+        main.show_stop()
+        main.on_download_complete(returncode=-15, stderr="", cancelled=True,
+                                  target=None)
+        assert main.current_state == "info"
+        assert main.run_btn_var.get() == "download"
+        assert _is_gridded(main.stop_btn) is False
+        assert "stopped" in main.info_var.get().lower()
+
+    def test_shows_partial_file_note_when_target_known(self, app_root, tmp_path):
+        target = str(tmp_path / "video [x].mp4")
+        main.show_stop()
+        main.on_download_complete(returncode=-15, stderr="", cancelled=True,
+                                  target=target)
+        assert target in main.info_var.get()

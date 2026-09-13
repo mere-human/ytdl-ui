@@ -48,10 +48,6 @@ Minimum viable “check → pick → download” experience.
   - [x] Parse `yt-dlp -F` output into a selectable list
   - [x] Let user pick a format before download
   - [x] Pass chosen format id to the download command
-  - [ ] _(optional, future)_ Handle video-only/audio-only picks: a single
-    video-only or audio-only format id downloads a silent or audio-only file.
-    Consider auto-combining (e.g. append `+bestaudio` to a video-only pick) or
-    warning the user before download.
 - [x] **Output folder**
   - [x] Add browse control for download directory
   - [x] Pass output path to yt-dlp (`-o` or equivalent)
@@ -61,7 +57,11 @@ Minimum viable “check → pick → download” experience.
   - [x] Disable when URL is empty or invalid
   - [x] Disable while check or download is in progress
   - [x] Re-enable appropriately on success or error
-- [ ] **Stop/abort button**
+- [x] **Stop/abort button**
+  - [x] Stop button appears only during a download; cancels the running yt-dlp
+    process (`terminate()`, then `kill()` after a grace period).
+  - [x] Leaves partial `.part` files on disk and shows the path in the info panel.
+  - [x] Returns to the `info` state so the download can be retried without re-checking.
 - [ ] **Cookies from browser (for rate limits / auth)**
   - [ ] Add a UI control to let the user opt in and choose a browser
   - [ ] Pass `--cookies-from-browser <browser>` to yt-dlp when set
@@ -148,3 +148,28 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [ ] Verify builds on Windows, macOS, and Linux
   - [ ] Decide whether to bundle yt-dlp or document separate install
   - [ ] Do not commit `dist/` or `build/` artifacts
+
+---
+
+## P7 — Polishing & refinements
+
+Optional refinements and follow-ups to features that already work. Not blocking
+the core flow; pick these up once higher-priority groups are clear.
+
+- [ ] **Handle video-only/audio-only format picks** _(refines P2 Format selection)_
+  - A single video-only or audio-only format id downloads a silent or
+    audio-only file.
+  - [ ] Auto-combine (e.g. append `+bestaudio` to a video-only pick), or
+  - [ ] Warn the user before download when the pick is video-only/audio-only.
+- [ ] **Full process-tree termination for Stop** _(follow-up to P2 Stop/abort)_
+  - Today Stop signals only yt-dlp's own process. yt-dlp may spawn children
+    (ffmpeg for muxing, deno for JS challenges) that can briefly outlive
+    `terminate()`.
+  - [ ] Kill the whole group/tree with platform-specific setup
+    (`start_new_session=True` + `os.killpg` on POSIX;
+    `CREATE_NEW_PROCESS_GROUP` / `taskkill /T` on Windows).
+- [ ] **Make the format check cancellable** _(follow-up to P2 Stop/abort)_
+  - The cancellation machinery in `run_download_live`/`stop_active_proc` is
+    written to generalize.
+  - [ ] Give `run_download` (the `-F` check) the same register/stop treatment so
+    a long-running check can also be aborted.

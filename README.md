@@ -80,6 +80,11 @@ Deactivate the venv when done with `deactivate`.
 6. Press "Download"
 7. Find the file in the selected folder.
 
+To cancel a download in progress, press **Stop** (it appears next to the
+Download button while downloading). yt-dlp keeps the partially downloaded
+`.part` file on disk and the info panel shows its path; the app returns to the
+format list so you can adjust the format and retry without checking again.
+
 ### Rate limiting (HTTP 429)
 
 YouTube may rate-limit requests with `HTTP Error 429: Too Many Requests`.

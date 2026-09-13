@@ -6,6 +6,8 @@ format-id extraction, rate-limit detection, and output-path building.
 """
 
 import os
+import subprocess
+import sys
 
 import main
 
@@ -179,3 +181,83 @@ class TestIsValidUrl:
 
     def test_surrounding_whitespace_is_tolerated(self):
         assert main.is_valid_url("  https://www.youtube.com/watch?v=x  ") is True
+
+
+class TestParseDownloadTarget:
+    def test_extracts_destination_path(self):
+        line = "[download] Destination: /tmp/My Video [abc123].mp4"
+        assert main.parse_download_target(line) == "/tmp/My Video [abc123].mp4"
+
+    def test_tolerates_surrounding_whitespace(self):
+        line = "  [download] Destination: /tmp/v.mp4  \n"
+        assert main.parse_download_target(line) == "/tmp/v.mp4"
+
+    def test_progress_line_returns_none(self):
+        assert main.parse_download_target("[download]  50.0% of 5.00MiB") is None
+
+    def test_empty_or_none_returns_none(self):
+        assert main.parse_download_target("") is None
+        assert main.parse_download_target(None) is None
+
+
+class TestPartialFileNote:
+    def test_none_target_returns_none(self):
+        assert main.partial_file_note(None) is None
+        assert main.partial_file_note("") is None
+
+    def test_points_at_target_when_no_part_file(self, tmp_path):
+        target = str(tmp_path / "video [x].mp4")
+        note = main.partial_file_note(target)
+        assert target in note
+        assert "Partial file left on disk" in note
+
+    def test_prefers_dot_part_file_when_present(self, tmp_path):
+        target = str(tmp_path / "video [x].mp4")
+        part = target + ".part"
+        # Create the .part file so the note should point at it.
+        with open(part, "w") as fh:
+            fh.write("partial")
+        note = main.partial_file_note(target)
+        assert part in note
+
+
+
+class TestStopActiveProc:
+    """Exercise the cancellation registry against a real short-lived process.
+
+    stop_active_proc() is pure/Tk-free, so it's tested here rather than in the
+    UI suite. We spawn a Python sleep as a stand-in for yt-dlp.
+    """
+
+    def _spawn_sleeper(self):
+        return subprocess.Popen(
+            [sys.executable, "-c", "import time; time.sleep(30)"],
+        )
+
+    def test_no_active_proc_returns_false(self):
+        main._clear_proc()
+        assert main.stop_active_proc() is False
+
+    def test_terminates_registered_process(self):
+        proc = self._spawn_sleeper()
+        main._register_proc(proc)
+        try:
+            assert main.stop_active_proc() is True
+            # After stop_active_proc returns, the process must be dead.
+            assert proc.poll() is not None
+            assert main.was_cancelled() is True
+        finally:
+            if proc.poll() is None:
+                proc.kill()
+            main._clear_proc()
+
+    def test_register_resets_cancelled_flag(self):
+        proc = self._spawn_sleeper()
+        main._register_proc(proc)
+        try:
+            # A freshly registered process is not (yet) cancelled.
+            assert main.was_cancelled() is False
+        finally:
+            proc.kill()
+            proc.wait()
+            main._clear_proc()

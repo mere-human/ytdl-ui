@@ -33,6 +33,72 @@ current_state = 'init'
 # both the worker lifecycle and the URL trace recompute that condition.
 _busy = False
 
+# --- Cancellation --------------------------------------------------------
+# Registry for the currently running, cancellable subprocess so the UI's Stop
+# button can terminate it from the main thread while a worker thread streams
+# its output. Guarded by a lock because register/stop run on different threads.
+# Structured as a small helper set (not hard-wired to "download") so cancelling
+# the format check can be added later with the same machinery (see TASKS.md).
+_proc_lock = threading.Lock()
+_active_proc = None      # the live subprocess.Popen, or None when idle
+_cancelled = False       # True when the active process was stopped by the user
+
+# Seconds to wait after terminate() before escalating to kill().
+_STOP_GRACE_SECONDS = 3
+
+
+def _register_proc(proc):
+    """Record the running cancellable process (called from a worker thread)."""
+    global _active_proc, _cancelled
+    with _proc_lock:
+        _active_proc = proc
+        _cancelled = False
+
+
+def _clear_proc():
+    """Forget the running process once it has finished (worker thread)."""
+    global _active_proc
+    with _proc_lock:
+        _active_proc = None
+
+
+def stop_active_proc():
+    """Terminate the running process, escalating to kill after a grace period.
+
+    Called from the UI thread when the user clicks Stop. Uses terminate() first
+    (graceful: SIGTERM on POSIX, TerminateProcess on Windows) and, if the
+    process is still alive after _STOP_GRACE_SECONDS, kill()s it.
+
+    Limitation: this signals only yt-dlp's own process, not a full process
+    tree. yt-dlp may spawn children (ffmpeg for muxing, deno for JS); those can
+    briefly outlive the stop. Killing the whole group/tree needs
+    platform-specific setup (start_new_session / CREATE_NEW_PROCESS_GROUP) and
+    is tracked as a follow-up in TASKS.md.
+
+    Returns True if a process was signalled, False if none was running.
+    """
+    global _cancelled
+    with _proc_lock:
+        proc = _active_proc
+        if proc is None:
+            return False
+        _cancelled = True
+    log.info("stop_active_proc: terminating pid=%s", proc.pid)
+    proc.terminate()
+    try:
+        proc.wait(timeout=_STOP_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        log.warning("stop_active_proc: grace expired, killing pid=%s", proc.pid)
+        proc.kill()
+    return True
+
+
+def was_cancelled():
+    """True if the most recent process was stopped by the user."""
+    with _proc_lock:
+        return _cancelled
+
+
 # --- Thread -> UI bridge -------------------------------------------------
 # Cross-thread `root.after(...)` calls are not reliably delivered on macOS Tk
 # (the callback can sit un-processed, leaving the UI stuck). Instead, worker
@@ -243,6 +309,39 @@ def is_valid_url(url):
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
 
 
+def parse_download_target(line):
+    """Return the destination path from a yt-dlp progress line, or None.
+
+    yt-dlp announces the output file with lines like:
+        [download] Destination: /path/Video [id].mp4
+        [download] /path/Video [id].mp4 has already been downloaded
+    We surface this so that, when a download is stopped, the UI can point the
+    user at the (partial) file left on disk. Pure (no Tk) so it's unit-testable.
+    """
+    if not line:
+        return None
+    text = line.strip()
+    marker = "[download] Destination: "
+    if text.startswith(marker):
+        return text[len(marker):].strip() or None
+    return None
+
+
+def partial_file_note(target):
+    """Build the 'partial file left on disk' note for a stopped download.
+
+    yt-dlp writes to a `.part` file while downloading and renames it on
+    completion, so after a stop the leftover is typically `<target>.part`
+    (falling back to the target path itself). Returns None when we never saw a
+    destination. Pure (no Tk) so it's unit-testable.
+    """
+    if not target:
+        return None
+    part = target + ".part"
+    which = part if os.path.exists(part) else target
+    return f"Partial file left on disk:\n  {which}"
+
+
 def run_download(*args):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
@@ -267,7 +366,9 @@ def run_download(*args):
 def run_download_live(*args, on_line=None):
     """Run yt-dlp with live line-by-line output via on_line callback.
 
-    Returns (returncode, stderr) or None if yt-dlp not found.
+    Registers the process so the UI's Stop button can terminate it, and clears
+    the registration when it exits. Returns (returncode, stderr) or None if
+    yt-dlp not found.
     """
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
     log.info("run_download_live: starting: %s", " ".join(cmd))
@@ -283,15 +384,19 @@ def run_download_live(*args, on_line=None):
         log.error("run_download_live: yt-dlp not found at %s", YT_DLP)
         return None
 
-    # Stream stdout line by line
-    for line in proc.stdout:
-        if on_line:
-            on_line(line)
+    _register_proc(proc)
+    try:
+        # Stream stdout line by line
+        for line in proc.stdout:
+            if on_line:
+                on_line(line)
 
-    proc.wait()
-    stderr = proc.stderr.read()
-    proc.stderr.close()
-    proc.stdout.close()
+        proc.wait()
+        stderr = proc.stderr.read()
+        proc.stderr.close()
+        proc.stdout.close()
+    finally:
+        _clear_proc()
     log.info("run_download_live: finished rc=%s (stderr %d chars)",
              proc.returncode, len(stderr or ""))
     return proc.returncode, stderr
@@ -377,9 +482,44 @@ def hide_formats():
     format_combo.grid_remove()
 
 
-def on_download_complete(returncode, stderr):
-    """Called on main thread when download finishes."""
+def show_stop():
+    """Reveal the Stop button (only visible while a download runs)."""
+    stop_btn.configure(state='normal')
+    stop_btn.grid()
+
+
+def hide_stop():
+    """Hide the Stop button when no download is running."""
+    stop_btn.grid_remove()
+
+
+def stop_btn_press(*_args):
+    """Stop the running download at the user's request."""
+    log.info("stop_btn_press: state=%s", current_state)
+    # Disable immediately so a second click can't race the termination.
+    stop_btn.configure(state='disabled')
+    info_var.set("Stopping...")
+    # stop_active_proc() may block up to the grace period waiting for exit, so
+    # run it off the UI thread. The download worker will post the final result
+    # (via on_download_complete with cancelled=True) once the process ends.
+    threading.Thread(target=stop_active_proc, daemon=True, name="stop").start()
+
+
+def on_download_complete(returncode, stderr, cancelled=False, target=None):
+    """Called on main thread when download finishes (or is stopped)."""
     global current_state
+    if cancelled:
+        # User stopped it: return to 'info' (5b) so formats stay selected and
+        # the download can be retried without re-checking. Leave partial files
+        # on disk and point the user at them.
+        msg = "Download stopped."
+        note = partial_file_note(target)
+        info_var.set(msg + ("\n\n" + note if note else ""))
+        current_state = 'info'
+        run_btn_var.set("download")
+        hide_stop()
+        set_busy(False)
+        return
     if returncode != 0:
         if is_rate_limited(stderr):
             info_var.set(RATE_LIMITED_MSG)
@@ -395,6 +535,7 @@ def on_download_complete(returncode, stderr):
     current_state = 'init'
     run_btn_var.set("check")
     hide_formats()
+    hide_stop()
     set_busy(False)
 
 
@@ -421,7 +562,14 @@ def run_download_in_thread(url, fmt_id=None, out_dir=None):
     """Run download in background with live output; post result to main thread."""
     def worker():
         log.info("download worker: started for url=%r fmt=%r out_dir=%r", url, fmt_id, out_dir)
+        # Track the latest download destination seen in output so a stop can
+        # tell the user which (partial) file was left behind.
+        target = {"path": None}
+
         def on_line(line):
+            dest = parse_download_target(line)
+            if dest:
+                target["path"] = dest
             # Queue UI update on main thread with latest line
             _post(lambda l=line: info_var.set(l.rstrip('\n')))
 
@@ -443,8 +591,11 @@ def run_download_in_thread(url, fmt_id=None, out_dir=None):
             ))
         else:
             returncode, stderr = result
-            log.info("download worker: scheduling on_download_complete rc=%s", returncode)
-            _post(lambda: on_download_complete(returncode, stderr))
+            cancelled = was_cancelled()
+            log.info("download worker: scheduling on_download_complete rc=%s cancelled=%s",
+                     returncode, cancelled)
+            _post(lambda: on_download_complete(
+                returncode, stderr, cancelled=cancelled, target=target["path"]))
 
     thread = threading.Thread(target=worker, daemon=True, name="download")
     thread.start()
@@ -467,6 +618,7 @@ def run_btn_press(*args):
     elif current_state == 'info':
         info_var.set('Downloading...')
         set_busy(True)
+        show_stop()
         run_download_in_thread(url_var.get(), selected_format_id(), output_dir_var.get())
 
 
@@ -479,23 +631,23 @@ def build_ui(root):
     calling mainloop().
     """
     global frame, url_label, url_var, url_entry
-    global run_btn_var, run_btn, format_label, format_var, format_combo
+    global run_btn_var, run_btn, stop_btn, format_label, format_var, format_combo
     global output_dir_label, output_dir_var, output_dir_value, browse_btn
     global info_frame, info_var, info_label
 
     root.title("Video Downloader")
 
-    # |---------------------------------------|
-    # | frame                                 |
-    # |---------------------------------------|
-    # | url_label    | url_entry   | run_btn  |
-    # |---------------------------------------|
-    # | format_label | format_combo          |
-    # |---------------------------------------|
+    # |-------------------------------------------------|
+    # | frame                                           |
+    # |-------------------------------------------------|
+    # | url_label    | url_entry        | run_btn | stop_btn |
+    # |-------------------------------------------------|
+    # | format_label | format_combo               |
+    # |-------------------------------------------------|
     # | "Folder:"    | output_dir_value | browse_btn |
-    # |---------------------------------------|
-    # | info_frame + info_label               |
-    # |---------------------------------------|
+    # |-------------------------------------------------|
+    # | info_frame + info_label                         |
+    # |-------------------------------------------------|
 
     frame = ttk.Frame(root, padding="3 3 12 12")
     url_label = ttk.Label(frame, text="URL:")
@@ -503,6 +655,8 @@ def build_ui(root):
     url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
     run_btn_var = StringVar(value="check")
     run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
+    # Stop appears only while a download runs (see show_stop/hide_stop).
+    stop_btn = ttk.Button(frame, text="Stop", command=stop_btn_press)
     # Recompute the run button's enabled state as the URL text changes.
     url_var.trace_add("write", update_run_btn_state)
     format_label = ttk.Label(frame, text="Format:")
@@ -527,17 +681,14 @@ def build_ui(root):
     url_label.grid(column=1, row=1, sticky=E)
     url_entry.grid(column=2, row=1, sticky=(W, E))
     run_btn.grid(column=3, row=1, sticky=W)
+    stop_btn.grid(column=4, row=1, sticky=W)
     format_label.grid(column=1, row=2, sticky=E)
-    format_combo.grid(column=2, row=2, columnspan=2, sticky=(W, E))
+    format_combo.grid(column=2, row=2, columnspan=3, sticky=(W, E))
     output_dir_label.grid(column=1, row=3, sticky=E)
     output_dir_value.grid(column=2, row=3, sticky=(W, E))
-    browse_btn.grid(column=3, row=3, sticky=W)
-    info_frame.grid(column=1, row=4, columnspan=3, sticky=(N, W, E, S))
+    browse_btn.grid(column=3, row=3, columnspan=2, sticky=W)
+    info_frame.grid(column=1, row=4, columnspan=4, sticky=(N, W, E, S))
     info_label.grid(column=0, row=0, sticky=(N, W, E, S))
-
-    # The format picker starts hidden; it appears after a successful check.
-    format_label.grid_remove()
-    format_combo.grid_remove()
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)
@@ -546,8 +697,17 @@ def build_ui(root):
     info_frame.columnconfigure(0, weight=1)
     info_frame.rowconfigure(0, weight=1)
 
+    # Apply uniform padding BEFORE hiding widgets below: grid_configure() on a
+    # grid_remove()d widget re-maps it, so padding must be set while everything
+    # is still gridded, then the initially-hidden widgets removed afterwards.
     for child in frame.winfo_children():
         child.grid_configure(padx=5, pady=5)
+
+    # The format picker starts hidden; it appears after a successful check.
+    format_label.grid_remove()
+    format_combo.grid_remove()
+    # The Stop button starts hidden; it appears only during a download.
+    stop_btn.grid_remove()
 
     # URL starts empty, so the run button starts disabled.
     update_run_btn_state()

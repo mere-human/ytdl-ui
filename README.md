@@ -42,6 +42,13 @@ Confirm the venv uses Python 3.11+:
 python --version
 ```
 
+Make sure `pip` is available in the venv. Most venvs include it, but if
+`python -m pip --version` fails with `No module named pip`, bootstrap it:
+
+```bash
+python -m ensurepip --upgrade
+```
+
 Then install dependencies into the activated venv:
 
 ```bash
@@ -97,13 +104,29 @@ Agent and contributor notes: **[AGENTS.md](AGENTS.md)**.
 
 ### Tests
 
-Unit tests use [pytest](https://pytest.org). Install the dev dependencies into
-the activated venv and run the suite from the repo root:
+Unit tests use [pytest](https://pytest.org). With the venv **activated** (see
+[Installation](#installation)), install the dev dependencies and run the suite
+from the repo root:
 
 ```bash
-pip install -r requirements-dev.txt
+pip install -r requirements-dev.txt   # pulls in pytest (and runtime deps)
 pytest
 ```
 
-`main.py` builds its UI in `main()` (guarded by `if __name__ == "__main__":`),
-so tests import it without launching a window. Tests live in `tests/`.
+Run tests on the same Python 3.11+ interpreter the app uses — the venv's. When
+the venv is activated, `python`, `pip`, and `pytest` all resolve to it; to run
+without activating, call the venv binaries explicitly:
+
+```bash
+.venv/bin/python -m pytest            # macOS / Linux
+# .venv\Scripts\python -m pytest      # Windows
+```
+
+Avoid a bare `python3 -m pytest` unless the venv is activated — outside the
+venv it may run a different system Python and won't see the installed deps.
+
+`main.py` builds its UI in `build_ui()` (called from `main()`, guarded by
+`if __name__ == "__main__":`), so tests import it without launching a window.
+Tests live in `tests/`: `test_formats.py` covers the pure logic (parsing,
+URL/format validation, output paths) and `test_ui.py` runs headless Tk smoke
+tests for widget enable/disable behavior (auto-skipped if Tk has no display).

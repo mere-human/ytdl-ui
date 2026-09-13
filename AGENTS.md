@@ -58,7 +58,9 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 
 ### Prerequisites
 
-- Python 3.10+ (use features like `str | None` if typing is added)
+- Python 3.11+ — required (pinned in `.python-version`); downloads fail on 3.10.
+  See the [README](README.md#prerequisites) for the full rationale.
+  (You may use features like `str | None` if typing is added.)
 - [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and on PATH
 
 ### Run locally
@@ -95,20 +97,37 @@ Full test coverage is expected over time:
 
 Use **pytest**. Place tests in `tests/`. Test/dev dependencies live in
 `requirements-dev.txt` (keeps runtime `requirements.txt` minimal); install and
-run inside the activated venv:
+run **inside the activated venv** (its Python 3.11+ interpreter — not a system
+`python3`, which may differ and won't have the deps):
 
 ```bash
 pip install -r requirements-dev.txt
-pytest
+pytest                       # activated venv
+# or, without activating:
+.venv/bin/python -m pytest   # Windows: .venv\Scripts\python -m pytest
 ```
 
-`main.py` guards its Tk construction under `if __name__ == "__main__":` (UI is
-built in `main()`), so the module can be imported in tests without launching a
-window. Keep new logic in pure, Tk-free functions (as with `parse_formats`,
-`format_id_from_label`, `is_rate_limited`) so it stays unit-testable. Current
-coverage lives in `tests/test_formats.py`.
+If the venv has no pip (`No module named pip`), bootstrap it with
+`python -m ensurepip --upgrade` before installing.
+
+`main.py` guards its Tk construction under `if __name__ == "__main__":`; the UI
+is built in `build_ui(root)` and `main()` owns the event loop, so the module
+imports in tests without launching a window, and `build_ui` can be called on a
+headless root to smoke-test widget behavior. Keep new logic in pure, Tk-free
+functions (as with `parse_formats`, `format_id_from_label`, `is_rate_limited`,
+`is_valid_url`, `output_args`) so it stays unit-testable. Coverage lives in
+`tests/test_formats.py` (pure logic) and `tests/test_ui.py` (headless Tk widget
+state, e.g. that `set_busy` disables the format picker).
 
 Add tests alongside new features; do not leave behavior untested when logic is extractable from Tk callbacks.
+
+**Prefer tests over throwaway verification.** When you need to confirm behavior,
+write a `pytest` test in `tests/` rather than a one-off `python -c "..."`
+snippet or a scratch script. Extract the logic into a pure, Tk-free function so
+it can be asserted on, then keep the test as regression coverage. Reserve
+ad-hoc snippets for genuinely un-testable environment probing (e.g. checking
+whether an interpreter has `pip`); never use them as a substitute for a test of
+project logic.
 
 ## Code conventions
 
@@ -127,8 +146,8 @@ Outstanding fixes are listed as open items in **[TASKS.md](TASKS.md)** (especial
 
 1. Read **[TASKS.md](TASKS.md)** and this file before large changes.
 2. Prefer one task (or a coherent subset) from the highest-priority open group.
-3. Extract testable logic from Tk handlers when adding tests.
-4. After UI changes, verify manually: resize window, empty URL, invalid URL, long format list.
+3. Extract testable logic from Tk handlers and cover it with `pytest` tests (prefer tests over ad-hoc `python -c` snippets).
+4. After UI changes, also verify manually where tests can't reach: resize window, empty URL, invalid URL, long format list.
 5. Do not add markdown docs the user did not request (except maintaining [TASKS.md](TASKS.md), this file, and README when behavior changes).
 6. **Keep docs in sync** — after completing a task or fixing a bug, update the relevant docs in the same change:
    - Mark items done in **[TASKS.md](TASKS.md)** (or add new items if work was unplanned).

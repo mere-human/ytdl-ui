@@ -119,7 +119,7 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [x] Pin reasonable versions; keep runtime deps minimal
   - _venv moved to P1 (blocks running/testing downloads)._
 - [ ] **Testing**
-  - [ ] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
+  - [x] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
   - [ ] Set up pytest under `tests/`
   - [ ] Unit tests: format parsing, state transitions, URL validation, arg building
   - [ ] Mock subprocess for downloader success/failure/partial output

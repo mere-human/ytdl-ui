@@ -174,13 +174,20 @@ def parse_formats(output):
     return formats
 
 
-def selected_format_id():
-    """Return the chosen format id, or None for the default (best) entry."""
-    label = format_var.get()
+def format_id_from_label(label):
+    """Return the format id for a picker label, or None for the default entry.
+
+    Pure helper (no Tk) so it can be unit-tested directly. The id is the first
+    whitespace-delimited token of the label produced by `parse_formats`.
+    """
     if not label or label == DEFAULT_FORMAT_LABEL:
         return None
-    # The id is the first whitespace-delimited token of the label.
     return label.split(None, 1)[0]
+
+
+def selected_format_id():
+    """Return the chosen format id, or None for the default (best) entry."""
+    return format_id_from_label(format_var.get())
 
 
 def run_download(*args):
@@ -371,74 +378,90 @@ def run_btn_press(*args):
         run_download_in_thread(url_var.get(), selected_format_id())
 
 
-root = Tk()
-root.title("Video Downloader")
+def main():
+    """Build the Tk UI and run the event loop.
 
-# |---------------------------------|
-# | frame                           |
-# |---------------------------------|
-# | url_label | url_entry | run_btn |
-# |---------------------------------|
-# | info_frame + info_label         |
-# |---------------------------------|
-
-frame = ttk.Frame(root, padding="3 3 12 12")
-url_label = ttk.Label(frame, text="URL:")
-url_var = StringVar()
-url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
-run_btn_var = StringVar(value="check")
-run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
-format_label = ttk.Label(frame, text="Format:")
-format_var = StringVar(value=DEFAULT_FORMAT_LABEL)
-format_combo = ttk.Combobox(
-    frame, textvariable=format_var, state="readonly",
-    values=[DEFAULT_FORMAT_LABEL],
-)
-info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
-info_var = StringVar()
-info_label = ttk.Label(info_frame, textvariable=info_var)
-
-frame.grid(column=0, row=0, sticky=(N, W, E, S))
-url_label.grid(column=1, row=1, sticky=E)
-url_entry.grid(column=2, row=1, sticky=(W, E))
-run_btn.grid(column=3, row=1, sticky=W)
-format_label.grid(column=1, row=2, sticky=E)
-format_combo.grid(column=2, row=2, columnspan=2, sticky=(W, E))
-info_frame.grid(column=1, row=3, columnspan=3, sticky=(N, W, E, S))
-info_label.grid(column=0, row=0, sticky=(N, W, E, S))
-
-# The format picker starts hidden; it appears after a successful check.
-format_label.grid_remove()
-format_combo.grid_remove()
-
-root.columnconfigure(0, weight=1)
-root.rowconfigure(0, weight=1)
-frame.columnconfigure(2, weight=2)
-frame.rowconfigure(3, weight=2)
-info_frame.columnconfigure(0, weight=1)
-info_frame.rowconfigure(0, weight=1)
-
-for child in frame.winfo_children():
-    child.grid_configure(padx=5, pady=5)
-
-def focus_window():
-    """Bring the app window to the foreground and focus the URL entry.
-
-    Just calling widget.focus() sets focus within the app but does not
-    guarantee the OS raises the window to the front on launch (notably on
-    macOS/Windows). Temporarily setting topmost + lift() forces it forward.
+    Widgets are created here (not at import time) and published as globals so
+    the module can be imported for unit testing without launching Tk. The
+    handler functions above reference these names as globals.
     """
-    root.lift()
-    root.attributes('-topmost', True)
-    # Drop topmost right after so the window doesn't stay pinned above others.
-    root.after(0, lambda: root.attributes('-topmost', False))
-    root.focus_force()
-    url_entry.focus_set()
+    global root, frame, url_label, url_var, url_entry
+    global run_btn_var, run_btn, format_label, format_var, format_combo
+    global info_frame, info_var, info_label
+
+    root = Tk()
+    root.title("Video Downloader")
+
+    # |---------------------------------|
+    # | frame                           |
+    # |---------------------------------|
+    # | url_label | url_entry | run_btn |
+    # |---------------------------------|
+    # | format_label | format_combo     |
+    # |---------------------------------|
+    # | info_frame + info_label         |
+    # |---------------------------------|
+
+    frame = ttk.Frame(root, padding="3 3 12 12")
+    url_label = ttk.Label(frame, text="URL:")
+    url_var = StringVar()
+    url_entry = ttk.Entry(frame, width=7, textvariable=url_var)
+    run_btn_var = StringVar(value="check")
+    run_btn = ttk.Button(frame, textvariable=run_btn_var, command=run_btn_press)
+    format_label = ttk.Label(frame, text="Format:")
+    format_var = StringVar(value=DEFAULT_FORMAT_LABEL)
+    format_combo = ttk.Combobox(
+        frame, textvariable=format_var, state="readonly",
+        values=[DEFAULT_FORMAT_LABEL],
+    )
+    info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
+    info_var = StringVar()
+    info_label = ttk.Label(info_frame, textvariable=info_var)
+
+    frame.grid(column=0, row=0, sticky=(N, W, E, S))
+    url_label.grid(column=1, row=1, sticky=E)
+    url_entry.grid(column=2, row=1, sticky=(W, E))
+    run_btn.grid(column=3, row=1, sticky=W)
+    format_label.grid(column=1, row=2, sticky=E)
+    format_combo.grid(column=2, row=2, columnspan=2, sticky=(W, E))
+    info_frame.grid(column=1, row=3, columnspan=3, sticky=(N, W, E, S))
+    info_label.grid(column=0, row=0, sticky=(N, W, E, S))
+
+    # The format picker starts hidden; it appears after a successful check.
+    format_label.grid_remove()
+    format_combo.grid_remove()
+
+    root.columnconfigure(0, weight=1)
+    root.rowconfigure(0, weight=1)
+    frame.columnconfigure(2, weight=2)
+    frame.rowconfigure(3, weight=2)
+    info_frame.columnconfigure(0, weight=1)
+    info_frame.rowconfigure(0, weight=1)
+
+    for child in frame.winfo_children():
+        child.grid_configure(padx=5, pady=5)
+
+    def focus_window():
+        """Bring the app window to the foreground and focus the URL entry.
+
+        Just calling widget.focus() sets focus within the app but does not
+        guarantee the OS raises the window to the front on launch (notably on
+        macOS/Windows). Temporarily setting topmost + lift() forces it forward.
+        """
+        root.lift()
+        root.attributes('-topmost', True)
+        # Drop topmost right after so the window doesn't stay pinned above others.
+        root.after(0, lambda: root.attributes('-topmost', False))
+        root.focus_force()
+        url_entry.focus_set()
+
+    root.bind("<Return>", run_btn_press)
+    root.after(0, focus_window)
+    # Start draining the thread->UI queue on the main thread.
+    root.after(50, _pump_ui_queue)
+
+    root.mainloop()
 
 
-root.bind("<Return>", run_btn_press)
-root.after(0, focus_window)
-# Start draining the thread->UI queue on the main thread.
-root.after(50, _pump_ui_queue)
-
-root.mainloop()
+if __name__ == "__main__":
+    main()

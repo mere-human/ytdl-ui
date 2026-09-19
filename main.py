@@ -622,6 +622,23 @@ def run_btn_press(*args):
         run_download_in_thread(url_var.get(), selected_format_id(), output_dir_var.get())
 
 
+def _sync_info_text(*_args):
+    """Mirror info_var's value into the read-only info Text widget.
+
+    The info panel is a Text (not a Label) so long format lists and output
+    scroll. To keep every existing `info_var.set(...)` call site working
+    unchanged, info_var stays the source of truth and this trace pushes its
+    value into the widget: enable editing, replace all content, disable again
+    so the user can't type but can still select/scroll. Autoscroll to the end
+    so live download progress stays visible.
+    """
+    info_text.configure(state='normal')
+    info_text.delete('1.0', END)
+    info_text.insert('1.0', info_var.get())
+    info_text.configure(state='disabled')
+    info_text.see(END)
+
+
 def build_ui(root):
     """Construct all widgets and lay them out on the given Tk root.
 
@@ -633,7 +650,7 @@ def build_ui(root):
     global frame, url_label, url_var, url_entry
     global run_btn_var, run_btn, stop_btn, format_label, format_var, format_combo
     global output_dir_label, output_dir_var, output_dir_value, browse_btn
-    global info_frame, info_var, info_label
+    global info_frame, info_var, info_text, info_scroll
 
     root.title("Video Downloader")
 
@@ -675,7 +692,16 @@ def build_ui(root):
     browse_btn = ttk.Button(frame, text="Browse...", command=choose_output_dir)
     info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
     info_var = StringVar()
-    info_label = ttk.Label(info_frame, textvariable=info_var)
+    # Long format lists and live output need scrolling, so the info panel is a
+    # Text widget (not a Label) with a vertical Scrollbar. It's kept read-only
+    # (state='disabled') and synced from info_var via a trace (_sync_info_text)
+    # so all existing info_var.set(...) call sites keep working unchanged.
+    info_text = Text(info_frame, width=40, height=10, wrap='none',
+                     state='disabled', borderwidth=0)
+    info_scroll = ttk.Scrollbar(info_frame, orient=VERTICAL,
+                                command=info_text.yview)
+    info_text.configure(yscrollcommand=info_scroll.set)
+    info_var.trace_add("write", _sync_info_text)
 
     frame.grid(column=0, row=0, sticky=(N, W, E, S))
     url_label.grid(column=1, row=1, sticky=E)
@@ -688,7 +714,8 @@ def build_ui(root):
     output_dir_value.grid(column=2, row=3, sticky=(W, E))
     browse_btn.grid(column=3, row=3, columnspan=2, sticky=W)
     info_frame.grid(column=1, row=4, columnspan=4, sticky=(N, W, E, S))
-    info_label.grid(column=0, row=0, sticky=(N, W, E, S))
+    info_text.grid(column=0, row=0, sticky=(N, W, E, S))
+    info_scroll.grid(column=1, row=0, sticky=(N, S))
 
     root.columnconfigure(0, weight=1)
     root.rowconfigure(0, weight=1)

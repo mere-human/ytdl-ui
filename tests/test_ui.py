@@ -7,6 +7,7 @@ cannot initialize (e.g. a headless CI with no display).
 """
 
 import tkinter
+from tkinter import ttk
 
 import pytest
 
@@ -146,3 +147,38 @@ class TestCancelledCompletion:
         main.on_download_complete(returncode=-15, stderr="", cancelled=True,
                                   target=target)
         assert target in main.info_var.get()
+
+
+class TestInfoPanelScroll:
+    """P3 Scroll: the info panel is a read-only, scrollable Text widget kept
+    in sync with info_var so existing set()/get() call sites still work."""
+
+    def _text(self, root):
+        # Full text content of the info widget, minus Tk's trailing newline.
+        return main.info_text.get("1.0", "end-1c")
+
+    def test_is_text_widget_with_scrollbar(self, app_root):
+        assert isinstance(main.info_text, tkinter.Text)
+        assert isinstance(main.info_scroll, ttk.Scrollbar)
+
+    def test_text_is_readonly(self, app_root):
+        # Read-only so users can select/copy/scroll but not type into it.
+        assert _state(main.info_text) == "disabled"
+
+    def test_info_var_set_updates_text_widget(self, app_root):
+        main.info_var.set("hello world")
+        assert self._text(app_root) == "hello world"
+
+    def test_info_var_set_replaces_previous_content(self, app_root):
+        main.info_var.set("first")
+        main.info_var.set("second")
+        assert self._text(app_root) == "second"
+
+    def test_multiline_output_preserved(self, app_root):
+        payload = "line1\nline2\nline3"
+        main.info_var.set(payload)
+        assert self._text(app_root) == payload
+
+    def test_scrollbar_wired_to_text_yview(self, app_root):
+        # Scrollbar drives the Text's vertical view.
+        assert str(main.info_text.cget("yscrollcommand")) != ""

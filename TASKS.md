@@ -81,8 +81,8 @@ Minimum viable “check → pick → download” experience.
 
 Make format lists and progress readable.
 
-- [ ] **Scroll**
-  - [ ] Replace single `ttk.Label` with `Text` + `Scrollbar` (or `ScrolledText`)
+- [✓] **Scroll**
+  - [✓] Replace single `ttk.Label` with `Text` + `Scrollbar` (or `ScrolledText`)
 - [ ] **Copy from info panel**
   - [ ] Allow selecting and copying text (e.g. Ctrl+C, standard context menu)
 - [ ] **Wrap text**

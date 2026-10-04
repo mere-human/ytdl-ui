@@ -141,6 +141,7 @@ project logic.
 - **Globals** — reduce `global current_state` over time; prefer a small class or dataclass for app state.
 - **Errors** — surface yt-dlp stderr to the user; reset state to `init` on failure.
 - **Commits** — only when the user asks; follow repo message style (short imperative: "Add state", "Integrate youtube-dl").
+- For Markdown files, use Semantic Line Breaks. Avoid wrapping the line mid sentence. When writing text with a compatible markup language, add a line break after each substantial unit of thought.
 
 ## Known issues
 

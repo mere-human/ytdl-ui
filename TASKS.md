@@ -66,8 +66,7 @@ Minimum viable “check → pick → download” experience.
   - [✓] Disable while check or download is in progress
   - [✓] Re-enable appropriately on success or error
 - [✓] **Stop/abort button**
-  - [✓] Stop button appears only during a download; cancels the running yt-dlp
-    process (`terminate()`, then `kill()` after a grace period).
+  - [✓] Stop button appears only during a download; cancels the running yt-dlp process (`terminate()`, then `kill()` after a grace period).
   - [✓] Leaves partial `.part` files on disk and shows the path in the info panel.
   - [✓] Returns to the `info` state so the download can be retried without re-checking.
 - [ ] **Cookies from browser (for rate limits / auth)**
@@ -124,9 +123,7 @@ Optional polish after the core flow works.
 Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 
 - [ ] **Refactor: separate UI from logic (separation of concerns)**
-  - Split the single `main.py` into a **presentation layer** and a
-    **domain/logic layer** so the two evolve independently — a classic
-    *separation of concerns* / layered (Model–View) design.
+  - Split the single `main.py` into a **presentation layer** and a **domain/logic layer** so the two evolve independently — a classic *separation of concerns* / layered (Model–View) design.
   - [ ] Move pure, Tk-free logic (`parse_formats`, `format_id_from_label`,
     `is_rate_limited`, `is_valid_url`, `output_template`/`output_args`,
     `default_output_dir`, and the yt-dlp `subprocess` wrappers) into a
@@ -137,13 +134,12 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
     state into a small class or dataclass (per AGENTS.md conventions).
   - [ ] Keep `main.py` as a thin entry point that wires UI + core together.
   - [ ] Update tests to import from the new module(s); no behavior change.
-  - Prefer an incremental refactor (extract logic first, then rehome UI) over
-    a big-bang rewrite, per AGENTS.md.
+  - Prefer an incremental refactor (extract logic first, then rehome UI) over a big-bang rewrite, per AGENTS.md.
 
 - [✓] **Dependencies**
   - [✓] Add `requirements.txt` (or `pyproject.toml` when warranted)
   - [✓] Pin reasonable versions; keep runtime deps minimal
-  - _venv moved to P1 (blocks running/testing downloads)._
+  - *venv moved to P1 (blocks running/testing downloads).*
 - [~] **Testing**
   - [✓] Refactor so `main.py` can be imported without launching Tk (guard `Tk()`/`mainloop()` under `if __name__ == "__main__":` or a `main()` function) so logic is unit-testable
   - [✓] Set up pytest under `tests/` (`pytest.ini`, `requirements-dev.txt`)
@@ -164,20 +160,18 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 Optional refinements and follow-ups to features that already work. Not blocking
 the core flow; pick these up once higher-priority groups are clear.
 
-- [ ] **Handle video-only/audio-only format picks** _(refines P2 Format selection)_
-  - A single video-only or audio-only format id downloads a silent or
-    audio-only file.
+- [ ] **Handle video-only/audio-only format picks** *(refines P2 Format selection)*
+  - A single video-only or audio-only format id downloads a silent or audio-only file.
   - [ ] Auto-combine (e.g. append `+bestaudio` to a video-only pick), or
   - [ ] Warn the user before download when the pick is video-only/audio-only.
-- [ ] **Full process-tree termination for Stop** _(follow-up to P2 Stop/abort)_
-  - Today Stop signals only yt-dlp's own process. yt-dlp may spawn children
-    (ffmpeg for muxing, deno for JS challenges) that can briefly outlive
-    `terminate()`.
+- [ ] **Full process-tree termination for Stop** *(follow-up to P2 Stop/abort)*
+  - Today Stop signals only yt-dlp's own process. yt-dlp may spawn children (ffmpeg for muxing, deno for JS challenges) that can briefly outlive
+  `terminate()`.
   - [ ] Kill the whole group/tree with platform-specific setup
     (`start_new_session=True` + `os.killpg` on POSIX;
     `CREATE_NEW_PROCESS_GROUP` / `taskkill /T` on Windows).
-- [ ] **Make the format check cancellable** _(follow-up to P2 Stop/abort)_
-  - The cancellation machinery in `run_download_live`/`stop_active_proc` is
-    written to generalize.
+- [ ] **Make the format check cancellable** *(follow-up to P2 Stop/abort)*
+  - The cancellation machinery in `run_download_live`/`stop_active_proc` is written to generalize.
   - [ ] Give `run_download` (the `-F` check) the same register/stop treatment so
     a long-running check can also be aborted.
+- [ ] Bug: Info is not updated after the URL is changed

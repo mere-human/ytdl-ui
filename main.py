@@ -4,6 +4,7 @@
 from tkinter import *
 from tkinter import ttk
 from tkinter import filedialog
+import io
 import logging
 import os
 import queue
@@ -11,7 +12,9 @@ import shutil
 import subprocess
 import sys
 import threading
+import urllib.error
 import urllib.parse
+import urllib.request
 
 # --- Logging -------------------------------------------------------------
 # Logs go to stderr (visible in the launching terminal) and to ytdl-ui.log
@@ -208,6 +211,21 @@ def is_rate_limited(text):
 # Label used for the default (no explicit -f) entry in the format picker.
 DEFAULT_FORMAT_LABEL = "best (default)"
 
+# yt-dlp `--print` template used during `-F` so we can pick the thumbnail URL
+# out of the same check without a second extract. Lines are skipped by
+# parse_formats so they never leak into the format picker.
+THUMB_PRINT_PREFIX = "THUMB:"
+THUMB_PRINT_TEMPLATE = THUMB_PRINT_PREFIX + "%(thumbnail)s"
+
+# Display cap for the preview; source images are scaled down, never up.
+THUMB_MAX_WIDTH = 320
+THUMB_MAX_HEIGHT = 180
+THUMB_FETCH_TIMEOUT = 15
+THUMB_MAX_BYTES = 5_000_000
+
+# Keep a reference to the live PhotoImage so Tk does not garbage-collect it.
+_thumb_photo = None
+
 
 def parse_formats(output):
     """Parse `yt-dlp -F` output into a list of (format_id, label) tuples.
@@ -229,6 +247,9 @@ def parse_formats(output):
     for line in lines:
         stripped = line.strip()
         if not stripped:
+            continue
+        # Thumbnail URL is printed into the same stdout as `-F`.
+        if stripped.startswith(THUMB_PRINT_PREFIX):
             continue
         # The separator is a run of dashes (possibly with spaces/box chars).
         if not seen_separator:
@@ -307,6 +328,70 @@ def is_valid_url(url):
         return False
     parsed = urllib.parse.urlparse(url.strip())
     return parsed.scheme in ("http", "https") and bool(parsed.netloc)
+
+
+def parse_thumbnail_url(output):
+    """Return the thumbnail URL printed by yt-dlp, or None.
+
+    Looks for a `THUMB:` line produced by `--print THUMB:%(thumbnail)s`.
+    Missing/NA values are ignored. Pure (no Tk) so it can be unit-tested.
+    """
+    if not output:
+        return None
+    for line in output.splitlines():
+        stripped = line.strip()
+        if not stripped.startswith(THUMB_PRINT_PREFIX):
+            continue
+        url = stripped[len(THUMB_PRINT_PREFIX):].strip()
+        if is_valid_url(url):
+            return url
+    return None
+
+
+def fit_thumbnail_size(width, height, max_w=THUMB_MAX_WIDTH, max_h=THUMB_MAX_HEIGHT):
+    """Scale (width, height) to fit max_w x max_h without upscaling.
+
+    Pure (no Tk) so it can be unit-tested.
+    """
+    if width <= 0 or height <= 0:
+        return max(1, max_w), max(1, max_h)
+    scale = min(max_w / width, max_h / height, 1.0)
+    return max(1, int(width * scale)), max(1, int(height * scale))
+
+
+def fetch_thumbnail_bytes(url, timeout=THUMB_FETCH_TIMEOUT, max_bytes=THUMB_MAX_BYTES):
+    """Download thumbnail image bytes, or None on failure. Tk-free."""
+    if not is_valid_url(url):
+        return None
+    try:
+        req = urllib.request.Request(url, headers={"User-Agent": "ytdl-ui"})
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            data = resp.read(max_bytes + 1)
+    except (OSError, urllib.error.URLError, ValueError) as exc:
+        log.warning("fetch_thumbnail_bytes: %s", exc)
+        return None
+    if not data or len(data) > max_bytes:
+        return None
+    return data
+
+
+def decode_thumbnail(data, max_w=THUMB_MAX_WIDTH, max_h=THUMB_MAX_HEIGHT):
+    """Return a resized PIL Image from bytes, or None. Tk-free (uses Pillow)."""
+    if not data:
+        return None
+    try:
+        from PIL import Image
+        img = Image.open(io.BytesIO(data))
+        img.load()
+        size = fit_thumbnail_size(img.size[0], img.size[1], max_w, max_h)
+        if size != img.size:
+            img = img.resize(size, Image.Resampling.LANCZOS)
+        if img.mode not in ("RGB", "RGBA"):
+            img = img.convert("RGBA" if "A" in img.getbands() else "RGB")
+        return img
+    except Exception as exc:
+        log.warning("decode_thumbnail: %s", exc)
+        return None
 
 
 def parse_download_target(line):
@@ -441,23 +526,26 @@ def choose_output_dir():
         log.info("choose_output_dir: set to %r", chosen)
 
 
-def on_check_complete(ret):
+def on_check_complete(ret, thumb_bytes=None):
     """Called on main thread when check finishes."""
     global current_state
     log.info("on_check_complete: ret=%s", "None" if ret is None else f"rc={ret.returncode}")
     if ret is None:
         info_var.set(YT_DLP_NOT_FOUND)
         current_state = 'init'
+        hide_thumbnail()
     elif ret.returncode != 0:
         if is_rate_limited(ret.stderr):
             info_var.set(RATE_LIMITED_MSG)
         else:
             info_var.set(ret.stderr if ret.stderr else f'Unknown error: {ret.returncode}')
         current_state = 'init'
+        hide_thumbnail()
     else:
         log.info("on_check_complete: setting info label with %d chars of formats", len(ret.stdout or ""))
         info_var.set(ret.stdout)
         populate_formats(ret.stdout)
+        show_thumbnail(thumb_bytes)
         run_btn_var.set("download")
     set_busy(False)
 
@@ -480,6 +568,33 @@ def hide_formats():
     format_combo.configure(values=[DEFAULT_FORMAT_LABEL])
     format_label.grid_remove()
     format_combo.grid_remove()
+
+
+def show_thumbnail(data):
+    """Decode image bytes and show the preview; hide it if decoding fails."""
+    global _thumb_photo
+    img = decode_thumbnail(data)
+    if img is None:
+        hide_thumbnail()
+        return
+    try:
+        from PIL import ImageTk
+        photo = ImageTk.PhotoImage(img)
+    except Exception as exc:
+        log.warning("show_thumbnail: %s", exc)
+        hide_thumbnail()
+        return
+    _thumb_photo = photo  # prevent Tk from collecting the image
+    thumb_label.configure(image=photo)
+    thumb_label.grid()
+
+
+def hide_thumbnail():
+    """Clear and hide the thumbnail preview."""
+    global _thumb_photo
+    thumb_label.configure(image="")
+    thumb_label.grid_remove()
+    _thumb_photo = None
 
 
 def show_stop():
@@ -535,6 +650,7 @@ def on_download_complete(returncode, stderr, cancelled=False, target=None):
     current_state = 'init'
     run_btn_var.set("check")
     hide_formats()
+    hide_thumbnail()
     hide_stop()
     set_busy(False)
 
@@ -544,7 +660,7 @@ def run_check_in_thread(url):
     def worker():
         log.info("check worker: started for url=%r", url)
         try:
-            ret = run_download("-F", url)
+            ret = run_download("--print", THUMB_PRINT_TEMPLATE, "-F", url)
         except Exception:
             # Without this, an exception silently kills the thread and the UI
             # stays stuck on "Getting info..." with no clue why.
@@ -552,8 +668,14 @@ def run_check_in_thread(url):
             _post(lambda: (info_var.set("Unexpected error — see ytdl-ui.log"),
                            set_busy(False)))
             return
+        thumb_bytes = None
+        if ret is not None and ret.returncode == 0:
+            thumb_url = parse_thumbnail_url(ret.stdout)
+            if thumb_url:
+                log.info("check worker: fetching thumbnail %s", thumb_url)
+                thumb_bytes = fetch_thumbnail_bytes(thumb_url)
         log.info("check worker: scheduling on_check_complete on UI thread")
-        _post(lambda: on_check_complete(ret))
+        _post(lambda r=ret, b=thumb_bytes: on_check_complete(r, b))
     thread = threading.Thread(target=worker, daemon=True, name="check")
     thread.start()
 
@@ -613,6 +735,7 @@ def run_btn_press(*args):
     if current_state == 'init':
         info_var.set('Getting info...')
         current_state = 'info'
+        hide_thumbnail()
         set_busy(True)
         run_check_in_thread(url_var.get())
     elif current_state == 'info':
@@ -650,7 +773,7 @@ def build_ui(root):
     global frame, url_label, url_var, url_entry
     global run_btn_var, run_btn, stop_btn, format_label, format_var, format_combo
     global output_dir_label, output_dir_var, output_dir_value, browse_btn
-    global info_frame, info_var, info_text, info_scroll
+    global content_frame, thumb_label, info_frame, info_var, info_text, info_scroll
 
     root.title("Video Downloader")
 
@@ -663,7 +786,7 @@ def build_ui(root):
     # |-------------------------------------------------|
     # | "Folder:"    | output_dir_value | browse_btn |
     # |-------------------------------------------------|
-    # | info_frame + info_label                         |
+    # | content_frame: thumb_label | info_frame         |
     # |-------------------------------------------------|
 
     frame = ttk.Frame(root, padding="3 3 12 12")
@@ -690,7 +813,10 @@ def build_ui(root):
         frame, textvariable=output_dir_var, state="readonly",
     )
     browse_btn = ttk.Button(frame, text="Browse...", command=choose_output_dir)
-    info_frame = ttk.Frame(frame, borderwidth=1, relief='solid')
+    content_frame = ttk.Frame(frame)
+    # Preview appears after a successful check; hidden until then.
+    thumb_label = ttk.Label(content_frame)
+    info_frame = ttk.Frame(content_frame, borderwidth=1, relief='solid')
     info_var = StringVar()
     # Long format lists and live output need scrolling, so the info panel is a
     # Text widget (not a Label) with a vertical Scrollbar. It's kept read-only
@@ -713,7 +839,9 @@ def build_ui(root):
     output_dir_label.grid(column=1, row=3, sticky=E)
     output_dir_value.grid(column=2, row=3, sticky=(W, E))
     browse_btn.grid(column=3, row=3, columnspan=2, sticky=W)
-    info_frame.grid(column=1, row=4, columnspan=4, sticky=(N, W, E, S))
+    content_frame.grid(column=1, row=4, columnspan=4, sticky=(N, W, E, S))
+    thumb_label.grid(column=0, row=0, sticky=N, padx=(0, 8))
+    info_frame.grid(column=1, row=0, sticky=(N, W, E, S))
     info_text.grid(column=0, row=0, sticky=(N, W, E, S))
     info_scroll.grid(column=1, row=0, sticky=(N, S))
 
@@ -721,6 +849,8 @@ def build_ui(root):
     root.rowconfigure(0, weight=1)
     frame.columnconfigure(2, weight=2)
     frame.rowconfigure(4, weight=2)
+    content_frame.columnconfigure(1, weight=1)
+    content_frame.rowconfigure(0, weight=1)
     info_frame.columnconfigure(0, weight=1)
     info_frame.rowconfigure(0, weight=1)
 
@@ -733,6 +863,8 @@ def build_ui(root):
     # The format picker starts hidden; it appears after a successful check.
     format_label.grid_remove()
     format_combo.grid_remove()
+    # Thumbnail starts hidden; it appears after a successful check.
+    thumb_label.grid_remove()
     # The Stop button starts hidden; it appears only during a download.
     stop_btn.grid_remove()
 

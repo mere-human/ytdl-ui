@@ -182,3 +182,58 @@ class TestInfoPanelScroll:
     def test_scrollbar_wired_to_text_yview(self, app_root):
         # Scrollbar drives the Text's vertical view.
         assert str(main.info_text.cget("yscrollcommand")) != ""
+
+
+def _png_bytes(w=64, h=36):
+    from PIL import Image
+    import io
+    img = Image.new("RGB", (w, h), (20, 80, 160))
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    return buf.getvalue()
+
+
+class TestThumbnailPreview:
+    def test_hidden_initially(self, app_root):
+        assert _is_gridded(main.thumb_label) is False
+
+    def test_shown_after_successful_check(self, app_root):
+        class _Ret:
+            returncode = 0
+            stdout = "ok"
+            stderr = ""
+
+        main.on_check_complete(_Ret(), _png_bytes())
+        assert _is_gridded(main.thumb_label) is True
+        assert main._thumb_photo is not None
+
+    def test_hidden_when_bytes_missing(self, app_root):
+        class _Ret:
+            returncode = 0
+            stdout = "ok"
+            stderr = ""
+
+        main.on_check_complete(_Ret(), None)
+        assert _is_gridded(main.thumb_label) is False
+
+    def test_hidden_on_check_error(self, app_root):
+        main.show_thumbnail(_png_bytes())
+        class _Ret:
+            returncode = 1
+            stdout = ""
+            stderr = "boom"
+
+        main.on_check_complete(_Ret())
+        assert _is_gridded(main.thumb_label) is False
+
+    def test_hidden_after_successful_download(self, app_root):
+        main.show_thumbnail(_png_bytes())
+        main.on_download_complete(returncode=0, stderr="")
+        assert _is_gridded(main.thumb_label) is False
+
+    def test_kept_when_download_stopped(self, app_root):
+        main.show_thumbnail(_png_bytes())
+        main.show_stop()
+        main.on_download_complete(returncode=-15, stderr="", cancelled=True,
+                                  target=None)
+        assert _is_gridded(main.thumb_label) is True

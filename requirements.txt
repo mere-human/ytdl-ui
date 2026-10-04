@@ -7,3 +7,6 @@ yt-dlp>=2024.1.0
 # the venv so no system-wide runtime is needed. yt-dlp auto-uses deno; main.py
 # passes its venv path explicitly. See README.md.
 deno>=2.9.0
+
+# JPEG/WebP thumbnail preview in the Tk UI (PhotoImage has no JPEG decoder).
+Pillow>=10.0,<12

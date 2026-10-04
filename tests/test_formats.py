@@ -75,6 +75,14 @@ class TestParseFormats:
         ids = [fid for fid, _label in main.parse_formats(text)]
         assert ids == ["137", "140"]
 
+    def test_skips_thumb_print_line(self):
+        text = (
+            SAMPLE_F_OUTPUT
+            + "\nTHUMB:https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg\n"
+        )
+        ids = [fid for fid, _label in main.parse_formats(text)]
+        assert ids == ["sb0", "139", "140", "137", "18"]
+
 
 class TestFormatIdFromLabel:
     def test_default_label_returns_none(self):
@@ -181,6 +189,107 @@ class TestIsValidUrl:
 
     def test_surrounding_whitespace_is_tolerated(self):
         assert main.is_valid_url("  https://www.youtube.com/watch?v=x  ") is True
+
+
+class TestParseThumbnailUrl:
+    def test_extracts_prefixed_https_url(self):
+        output = (
+            SAMPLE_F_OUTPUT
+            + "\nTHUMB:https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg\n"
+        )
+        assert (
+            main.parse_thumbnail_url(output)
+            == "https://i.ytimg.com/vi/dQw4w9WgXcQ/maxresdefault.jpg"
+        )
+
+    def test_ignores_na_and_empty(self):
+        assert main.parse_thumbnail_url("THUMB:NA") is None
+        assert main.parse_thumbnail_url("THUMB:") is None
+        assert main.parse_thumbnail_url("") is None
+        assert main.parse_thumbnail_url(None) is None
+
+    def test_ignores_unrelated_output(self):
+        assert main.parse_thumbnail_url(SAMPLE_F_OUTPUT) is None
+
+
+class TestFitThumbnailSize:
+    def test_scales_down_to_fit(self):
+        # 800x600 -> limited by height 180 -> 240x180
+        assert main.fit_thumbnail_size(800, 600) == (240, 180)
+
+    def test_does_not_upscale(self):
+        assert main.fit_thumbnail_size(80, 45) == (80, 45)
+
+    def test_invalid_dimensions_fall_back_to_max(self):
+        assert main.fit_thumbnail_size(0, 10) == (
+            main.THUMB_MAX_WIDTH, main.THUMB_MAX_HEIGHT
+        )
+
+
+class TestFetchThumbnailBytes:
+    def test_invalid_url_returns_none(self):
+        assert main.fetch_thumbnail_bytes("not a url") is None
+
+    def test_reads_body_from_urlopen(self, monkeypatch):
+        body = b"fake-image-bytes"
+
+        class _Resp:
+            def read(self, n=-1):
+                return body[:n] if n >= 0 else body
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        monkeypatch.setattr(main.urllib.request, "urlopen", lambda *a, **k: _Resp())
+        assert main.fetch_thumbnail_bytes("https://example.com/t.jpg") == body
+
+    def test_oversized_body_returns_none(self, monkeypatch):
+        class _Resp:
+            def read(self, n=-1):
+                return b"x" * n
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+        monkeypatch.setattr(main.urllib.request, "urlopen", lambda *a, **k: _Resp())
+        assert main.fetch_thumbnail_bytes(
+            "https://example.com/t.jpg", max_bytes=8
+        ) is None
+
+    def test_network_error_returns_none(self, monkeypatch):
+        def _boom(*_a, **_k):
+            raise main.urllib.error.URLError("nope")
+
+        monkeypatch.setattr(main.urllib.request, "urlopen", _boom)
+        assert main.fetch_thumbnail_bytes("https://example.com/t.jpg") is None
+
+
+class TestDecodeThumbnail:
+    def _png_bytes(self, w, h):
+        from PIL import Image
+        img = Image.new("RGB", (w, h), (255, 0, 0))
+        buf = main.io.BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+
+    def test_resizes_large_image(self):
+        data = self._png_bytes(800, 600)
+        img = main.decode_thumbnail(data)
+        assert img is not None
+        assert img.size == (240, 180)
+
+    def test_garbage_bytes_return_none(self):
+        assert main.decode_thumbnail(b"not-an-image") is None
+
+    def test_empty_returns_none(self):
+        assert main.decode_thumbnail(b"") is None
+        assert main.decode_thumbnail(None) is None
 
 
 class TestParseDownloadTarget:

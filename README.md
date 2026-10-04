@@ -55,7 +55,9 @@ Then install dependencies into the activated venv:
 pip install -r requirements.txt
 ```
 
-This installs [yt-dlp](https://github.com/yt-dlp/yt-dlp) inside the venv.
+This installs [yt-dlp](https://github.com/yt-dlp/yt-dlp) inside the venv,
+plus [Pillow](https://pypi.org/project/Pillow/) so JPEG/WebP thumbnails can
+be shown in the UI (Tk's built-in image loader does not decode those formats).
 Alternatively, install yt-dlp via your system package manager — see the
 [yt-dlp installation guide](https://github.com/yt-dlp/yt-dlp#installation).
 
@@ -74,6 +76,7 @@ Deactivate the venv when done with `deactivate`.
 3. Press "Check"
 4. (Optional) Pick a format from the **Format** dropdown that appears — leave
    it on "best (default)" to let yt-dlp choose the best quality automatically.
+   A thumbnail preview appears next to the info panel when the check succeeds.
 5. (Optional) Choose where to save via the **Folder** row — it defaults to your
    Downloads folder (or the current directory if that doesn't exist). Click
    **Browse...** to pick another folder.

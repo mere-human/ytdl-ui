@@ -99,9 +99,9 @@ Make format lists and progress readable.
 
 Optional polish after the core flow works.
 
-- [ ] **Thumbnail**
-  - [ ] Fetch or extract thumbnail when video info is loaded
-  - [ ] Display thumbnail in the UI
+- [✓] **Thumbnail**
+  - [✓] Fetch or extract thumbnail when video info is loaded
+  - [✓] Display thumbnail in the UI
 - [ ] **Subtitles**
   - [ ] Optional subtitle download (UI toggle + yt-dlp flags)
   - [ ] Document subtitle language/options if applicable

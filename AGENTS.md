@@ -39,6 +39,9 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 - Decode stdout/stderr as text (`encoding="utf-8", errors="replace"`).
 - Prefer the **venv's** `yt-dlp` and `deno` (resolved next to `sys.executable`),
   falling back to `PATH`; this keeps the toolchain project-local.
+- **Thumbnails**: the format check passes `--print THUMB:%(thumbnail)s` with
+  `-F`. The URL is fetched with `urllib` on the worker thread; Pillow decodes
+  JPEG/WebP and the main thread shows it in a `ttk.Label` via `ImageTk`.
 - **JS runtime**: YouTube signature/challenge solving needs a JavaScript
   runtime. `deno` is a `requirements.txt` dependency (installed into the venv);
   `main.py` passes `--js-runtimes deno:<venv>/bin/deno` explicitly so it works
@@ -115,7 +118,8 @@ is built in `build_ui(root)` and `main()` owns the event loop, so the module
 imports in tests without launching a window, and `build_ui` can be called on a
 headless root to smoke-test widget behavior. Keep new logic in pure, Tk-free
 functions (as with `parse_formats`, `format_id_from_label`, `is_rate_limited`,
-`is_valid_url`, `output_args`) so it stays unit-testable. Coverage lives in
+`is_valid_url`, `output_args`, `parse_thumbnail_url`, `fit_thumbnail_size`,
+`fetch_thumbnail_bytes`, `decode_thumbnail`) so it stays unit-testable. Coverage lives in
 `tests/test_formats.py` (pure logic) and `tests/test_ui.py` (headless Tk widget
 state, e.g. that `set_busy` disables the format picker).
 

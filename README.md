@@ -121,6 +121,44 @@ pip install -r requirements-dev.txt   # pulls in pytest (and runtime deps)
 pytest
 ```
 
+### Building a standalone executable (PyInstaller)
+
+We include a minimal PyInstaller spec and helpers under `pyinstaller/`.
+
+From the project root with the venv activated, build a directory bundle:
+
+```bash
+python pyinstaller/build_exe.py
+```
+
+To create a single-file executable (Windows `.exe`) without a console window,
+run:
+
+```bash
+python pyinstaller/build_exe.py --onefile --windowed
+```
+
+For a console build (useful for debugging), omit `--windowed`:
+
+```bash
+python pyinstaller/build_exe.py --onefile
+```
+
+Windows convenience wrapper (uses `.venv` if present):
+
+```bash
+pyinstaller\build_windows.bat --onefile --windowed
+```
+
+The build script performs a small environment check first: it prefers the repo
+`.venv` when present and exits with a clear message if PyInstaller is missing.
+
+Notes:
+- The build does not bundle `yt-dlp`; either install `yt-dlp` alongside the
+  executable or adjust the spec to include it explicitly if desired.
+- Do not commit `dist/` or `build/` artifacts produced by PyInstaller.
+
+
 Run tests on the same Python 3.11+ interpreter the app uses — the venv's. When
 the venv is activated, `python`, `pip`, and `pytest` all resolve to it; to run
 without activating, call the venv binaries explicitly:

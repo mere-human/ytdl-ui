@@ -151,11 +151,11 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
     - [ ] Still to cover: state transitions, URL validation, arg building
   - [ ] Mock subprocess for downloader success/failure/partial output
   - [ ] Integration or smoke tests for UI/threading where practical
-- [ ] **PyInstaller**
-  - [ ] Add build script or `.spec` for standalone executables
+- [~] **PyInstaller**
+  - [✓] Add build script or `.spec` for standalone executables
   - [ ] Verify builds on Windows, macOS, and Linux
-  - [ ] Decide whether to bundle yt-dlp or document separate install
-  - [ ] Do not commit `dist/` or `build/` artifacts
+  - [✓] Decide whether to bundle yt-dlp or document separate install
+  - [✓] Do not commit `dist/` or `build/` artifacts
 
 ---
 

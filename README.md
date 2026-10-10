@@ -171,8 +171,8 @@ without activating, call the venv binaries explicitly:
 Avoid a bare `python3 -m pytest` unless the venv is activated — outside the
 venv it may run a different system Python and won't see the installed deps.
 
-`main.py` builds its UI in `build_ui()` (called from `main()`, guarded by
-`if __name__ == "__main__":`), so tests import it without launching a window.
-Tests live in `tests/`: `test_formats.py` covers the pure logic (parsing,
-URL/format validation, output paths) and `test_ui.py` runs headless Tk smoke
+`main.py` is a thin launcher for `ui.py`; importing either module does not
+create a window. Tk construction lives in `ui.build_ui()`, while reusable
+Tk-free behavior lives in `core.py`. Tests live in `tests/`:
+`test_formats.py` covers core logic and `test_ui.py` runs headless Tk smoke
 tests for widget enable/disable behavior (auto-skipped if Tk has no display).

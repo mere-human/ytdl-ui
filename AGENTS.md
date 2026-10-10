@@ -19,7 +19,9 @@ Work is tracked in **[TASKS.md](TASKS.md)** (grouped by priority). Distribution 
 ## Architecture
 
 ```
-main.py          # entry point (may split as complexity grows)
+main.py          # thin application entry point
+ui.py            # Tk widgets, callbacks, workers, and AppState
+core.py          # Tk-free helpers, yt-dlp commands, and process control
 ```
 
 Current state machine in `run_btn_press`:
@@ -44,7 +46,7 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
   JPEG/WebP and the main thread shows it in a `ttk.Label` via `ImageTk`.
 - **JS runtime**: YouTube signature/challenge solving needs a JavaScript
   runtime. `deno` is a `requirements.txt` dependency (installed into the venv);
-  `main.py` passes `--js-runtimes deno:<venv>/bin/deno` explicitly so it works
+  `core.py` passes `--js-runtimes deno:<venv>/bin/deno` explicitly so it works
   regardless of PATH. yt-dlp only auto-enables deno, and Node additionally
   needs `--remote-components ejs:github`, so deno is the simpler choice.
 - For PyInstaller builds, consider bundling yt-dlp (and deno) or documenting how users obtain them alongside the exe.
@@ -113,15 +115,11 @@ pytest                       # activated venv
 If the venv has no pip (`No module named pip`), bootstrap it with
 `python -m ensurepip --upgrade` before installing.
 
-`main.py` guards its Tk construction under `if __name__ == "__main__":`; the UI
-is built in `build_ui(root)` and `main()` owns the event loop, so the module
-imports in tests without launching a window, and `build_ui` can be called on a
-headless root to smoke-test widget behavior. Keep new logic in pure, Tk-free
-functions (as with `parse_formats`, `format_id_from_label`, `is_rate_limited`,
-`is_valid_url`, `output_args`, `parse_thumbnail_url`, `fit_thumbnail_size`,
-`fetch_thumbnail_bytes`, `decode_thumbnail`) so it stays unit-testable. Coverage lives in
-`tests/test_formats.py` (pure logic) and `tests/test_ui.py` (headless Tk widget
-state, e.g. that `set_busy` disables the format picker).
+`main.py` calls `ui.main()` only when run as a script. Tk construction and
+callbacks live in `ui.py`; `build_ui(root)` can be called on a headless root
+for widget smoke tests. Keep reusable behavior in pure, Tk-free `core.py`
+functions so it stays unit-testable. Coverage lives in `tests/test_formats.py`
+for core logic and `tests/test_ui.py` for headless Tk widget state.
 
 Add tests alongside new features; do not leave behavior untested when logic is extractable from Tk callbacks.
 
@@ -135,10 +133,10 @@ project logic.
 
 ## Code conventions
 
-- **Minimize scope** — small, focused diffs; match existing style in `main.py`.
+- **Minimize scope** — small, focused diffs; match existing style in `ui.py` and `core.py`.
 - **No over-engineering** — no premature abstractions; split files when a module has a clear responsibility.
 - **Comments** — only for non-obvious behavior (threading, yt-dlp quirks).
-- **Globals** — reduce `global current_state` over time; prefer a small class or dataclass for app state.
+- **App state** — keep UI phase and busy status grouped in `ui.AppState` rather than module-level flags.
 - **Errors** — surface yt-dlp stderr to the user; reset state to `init` on failure.
 - **Commits** — only when the user asks; follow repo message style (short imperative: "Add state", "Integrate youtube-dl").
 - For Markdown files, use Semantic Line Breaks. Avoid wrapping the line mid sentence. When writing text with a compatible markup language, add a line break after each substantial unit of thought.

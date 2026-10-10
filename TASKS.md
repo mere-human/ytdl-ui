@@ -122,18 +122,18 @@ Optional polish after the core flow works.
 
 Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 
-- [ ] **Refactor: separate UI from logic (separation of concerns)**
+- [✓] **Refactor: separate UI from logic (separation of concerns)**
   - Split the single `main.py` into a **presentation layer** and a **domain/logic layer** so the two evolve independently — a classic *separation of concerns* / layered (Model–View) design.
-  - [ ] Move pure, Tk-free logic (`parse_formats`, `format_id_from_label`,
+  - [✓] Move pure, Tk-free logic (`parse_formats`, `format_id_from_label`,
     `is_rate_limited`, `is_valid_url`, `output_template`/`output_args`,
     `default_output_dir`, and the yt-dlp `subprocess` wrappers) into a
     logic/core module (e.g. `core.py` or a `downloader/` package).
-  - [ ] Keep all Tk widget construction and callbacks in a UI module
+  - [✓] Keep all Tk widget construction and callbacks in a UI module
     (e.g. `ui.py`), depending on the core module — not the reverse.
-  - [ ] Reduce the `global current_state`/`_busy` usage by grouping app
+  - [✓] Reduce the `global current_state`/`_busy` usage by grouping app
     state into a small class or dataclass (per AGENTS.md conventions).
-  - [ ] Keep `main.py` as a thin entry point that wires UI + core together.
-  - [ ] Update tests to import from the new module(s); no behavior change.
+  - [✓] Keep `main.py` as a thin entry point that wires UI + core together.
+  - [✓] Update tests to import from the new module(s); no behavior change.
   - Prefer an incremental refactor (extract logic first, then rehome UI) over a big-bang rewrite, per AGENTS.md.
 
 - [✓] **Dependencies**

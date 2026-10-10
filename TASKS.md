@@ -178,4 +178,5 @@ the core flow; pick these up once higher-priority groups are clear.
   - The cancellation machinery in `run_download_live`/`stop_active_proc` is written to generalize.
   - [ ] Give `run_download` (the `-F` check) the same register/stop treatment so
     a long-running check can also be aborted.
-- [ ] Bug: Info is not updated after the URL is changed
+- [ ] Bug: Info is not updated after the URL is changed.
+- [ ] Bug: Pressing 'check' in built exe spaws a console window on Windows.

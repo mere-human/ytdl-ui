@@ -6,18 +6,46 @@ import os
 import shutil
 import subprocess
 import sys
+import tempfile
 import threading
 import urllib.error
 import urllib.parse
 import urllib.request
 
-_LOG_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ytdl-ui.log")
-logging.basicConfig(
-    level=os.environ.get("YTDL_UI_LOG", "WARNING").upper(),
-    format="%(asctime)s %(levelname)s [%(threadName)s] %(message)s",
-    handlers=[logging.StreamHandler(sys.stderr), logging.FileHandler(_LOG_PATH)],
-)
 log = logging.getLogger("ytdl-ui")
+log.addHandler(logging.NullHandler())
+log.setLevel(logging.INFO)
+log.propagate = False
+LOG_DIR = os.path.join(tempfile.gettempdir(), "ytdl-ui")
+LOG_PATH = os.path.join(LOG_DIR, f"ytdl-ui-{os.getpid()}.log")
+
+
+def configure_logging(log_dir=None):
+    """Configure app logging, optionally directing it to a specific directory."""
+    destination_dir = os.fspath(log_dir) if log_dir is not None else LOG_DIR
+    os.makedirs(destination_dir, exist_ok=True)
+    log_path = os.path.join(destination_dir, f"ytdl-ui-{os.getpid()}.log")
+    log.setLevel(logging.INFO)
+    log.propagate = False
+    is_configured = any(
+        isinstance(handler, logging.FileHandler)
+        and os.path.abspath(handler.baseFilename) == os.path.abspath(log_path)
+        for handler in log.handlers
+    )
+    if not is_configured:
+        formatter = logging.Formatter(
+            "%(asctime)s %(levelname)s [pid=%(process)d thread=%(threadName)s] %(message)s"
+        )
+        file_handler = logging.FileHandler(log_path, encoding="utf-8")
+        file_handler.setFormatter(formatter)
+        log.addHandler(file_handler)
+        stream_handler = logging.StreamHandler(sys.stderr)
+        stream_handler.setFormatter(formatter)
+        log.addHandler(stream_handler)
+    log.info("Python %s", sys.version.split()[0])
+    log.info("yt-dlp resolved to: %s", YT_DLP)
+    log.info("JS runtime opts: %s", JS_RUNTIME_OPTS or "(none — yt-dlp will auto-detect)")
+    return log_path
 
 
 class ProcessController:
@@ -88,9 +116,6 @@ def _js_runtime_opts():
 
 
 JS_RUNTIME_OPTS = _js_runtime_opts()
-log.info("Python %s", sys.version.split()[0])
-log.info("yt-dlp resolved to: %s", YT_DLP)
-log.info("JS runtime opts: %s", JS_RUNTIME_OPTS or "(none — yt-dlp will auto-detect)")
 
 YT_DLP_NOT_FOUND = (
     "Error: yt-dlp not found. Install it with:\n"
@@ -261,6 +286,8 @@ def run_download(*args):
             "run_download: finished rc=%s (stdout %d chars, stderr %d chars)",
             ret.returncode, len(ret.stdout or ""), len(ret.stderr or ""),
         )
+        if ret.returncode != 0:
+            log.error("run_download: yt-dlp failed rc=%s stderr=%r", ret.returncode, ret.stderr)
         return ret
     except FileNotFoundError:
         log.error("run_download: yt-dlp not found at %s", YT_DLP)
@@ -298,4 +325,6 @@ def run_download_live(*args, on_line=None):
         "run_download_live: finished rc=%s (stderr %d chars)",
         proc.returncode, len(stderr or ""),
     )
+    if proc.returncode != 0:
+        log.error("run_download_live: yt-dlp failed rc=%s stderr=%r", proc.returncode, stderr)
     return proc.returncode, stderr

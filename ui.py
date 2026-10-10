@@ -200,7 +200,13 @@ def stop_btn_press(*_args):
     # Stopping may block up to the grace period waiting for exit, so
     # run it off the UI thread. The download worker will post the final result
     # (via on_download_complete with cancelled=True) once the process ends.
-    threading.Thread(target=core.process_controller.stop, daemon=True, name="stop").start()
+    def stop_worker():
+        try:
+            core.process_controller.stop()
+        except Exception:
+            log.exception("stop worker: unexpected error")
+
+    threading.Thread(target=stop_worker, daemon=True, name="stop").start()
 
 
 def on_download_complete(returncode, stderr, cancelled=False, target=None):
@@ -247,7 +253,7 @@ def run_check_in_thread(url):
             # Without this, an exception silently kills the thread and the UI
             # stays stuck on "Getting info..." with no clue why.
             log.exception("check worker: unexpected error")
-            _post(lambda: (info_var.set("Unexpected error — see ytdl-ui.log"),
+            _post(lambda: (info_var.set(f"Unexpected error — see {core.LOG_PATH}"),
                            set_busy(False)))
             return
         thumb_bytes = None
@@ -285,7 +291,7 @@ def run_download_in_thread(url, fmt_id=None, out_dir=None):
             result = run_download_live(*args, on_line=on_line)
         except Exception:
             log.exception("download worker: unexpected error")
-            _post(lambda: (info_var.set("Unexpected error — see ytdl-ui.log"),
+            _post(lambda: (info_var.set(f"Unexpected error — see {core.LOG_PATH}"),
                            set_busy(False)))
             return
         if result is None:
@@ -462,8 +468,18 @@ def main():
     """
     global root
 
-    root = Tk()
-    build_ui(root)
+    try:
+        core.configure_logging()
+        root = Tk()
+        build_ui(root)
+    except Exception:
+        log.exception("Application startup failed")
+        raise
+
+    def report_callback_exception(exc, value, traceback):
+        log.error("Unhandled Tk callback exception", exc_info=(exc, value, traceback))
+
+    root.report_callback_exception = report_callback_exception
 
 
     def focus_window():

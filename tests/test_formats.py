@@ -1,10 +1,45 @@
 """Unit tests for the Tk-free logic in core.py."""
 
+import logging
 import os
 import subprocess
 import sys
+import tempfile
 
 import core
+
+
+class TestLogging:
+    def test_logs_info_and_above_to_temp_file_with_pid(self, tmp_path):
+        assert os.path.dirname(core.LOG_PATH) == os.path.join(
+            tempfile.gettempdir(), "ytdl-ui"
+        )
+        assert core.log.level == logging.INFO
+        marker = f"logging-test-{os.getpid()}"
+        original_handlers = tuple(core.log.handlers)
+        original_level = core.log.level
+        original_propagate = core.log.propagate
+        log_path = core.configure_logging(tmp_path)
+        try:
+            for level in ("info", "warning", "error"):
+                getattr(core.log, level)(f"{marker}-{level}")
+            for handler in core.log.handlers:
+                handler.flush()
+
+            with open(log_path, encoding="utf-8") as log_file:
+                matching_lines = [line for line in log_file if marker in line]
+            assert len(matching_lines) == 3
+            for level, line in zip(("INFO", "WARNING", "ERROR"), matching_lines):
+                assert f" {level} " in line
+                assert f"[pid={os.getpid()} " in line
+        finally:
+            for handler in tuple(core.log.handlers):
+                if handler not in original_handlers:
+                    core.log.removeHandler(handler)
+                    handler.close()
+            core.log.setLevel(original_level)
+            core.log.propagate = original_propagate
+            os.remove(log_path)
 
 
 # A realistic `yt-dlp -F` capture: preamble lines, a header row, a dashed

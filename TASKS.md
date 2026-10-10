@@ -153,6 +153,10 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [✓] Decide whether to bundle yt-dlp or document separate install
   - [✓] Do not commit `dist/` or `build/` artifacts
 
+- [ ] **Beta logging follow-ups**
+  - [ ] Lower the logging level after beta builds
+  - [ ] Add a setting to toggle logging
+
 ---
 
 ## P7 — Polishing & refinements

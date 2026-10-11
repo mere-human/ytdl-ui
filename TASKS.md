@@ -147,10 +147,14 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
     - [ ] Still to cover: state transitions, URL validation, arg building
   - [ ] Mock subprocess for downloader success/failure/partial output
   - [ ] Integration or smoke tests for UI/threading where practical
-- [~] **PyInstaller**
-  - [✓] Add build script or `.spec` for standalone executables
-  - [ ] Verify builds on Windows, macOS, and Linux
-  - [✓] Decide whether to bundle yt-dlp or document separate install
+- [~] **PyInstaller distribution**
+  - [✓] Build a Windows directory distribution with the app and standalone
+    runtimes
+  - [✓] Bundle yt-dlp and Deno so recipients do not need to install them
+  - [✓] Document replacing the bundled yt-dlp executable manually
+  - [ ] Verify builds on macOS and Linux
+  - [ ] Add an in-app yt-dlp updater that checks releases, downloads and verifies
+    the executable, replaces it safely, and reports whether a restart is needed
   - [✓] Do not commit `dist/` or `build/` artifacts
 
 - [ ] **Beta logging follow-ups**

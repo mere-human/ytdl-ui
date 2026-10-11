@@ -88,17 +88,24 @@ class ProcessController:
 process_controller = ProcessController()
 
 
-def _venv_bin_dir():
-    return os.path.dirname(os.path.abspath(sys.executable))
+def _runtime_bin_dirs():
+    directories = []
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if getattr(sys, "frozen", False) and bundle_dir:
+        directories.append(bundle_dir)
+    executable_dir = os.path.dirname(os.path.abspath(sys.executable))
+    if executable_dir not in directories:
+        directories.append(executable_dir)
+    return directories
 
 
 def _find_executable(name):
-    """Prefer executables installed beside the active Python interpreter."""
-    bin_dir = _venv_bin_dir()
-    for candidate in (name, name + ".exe"):
-        local = os.path.join(bin_dir, candidate)
-        if os.path.isfile(local) and os.access(local, os.X_OK):
-            return local
+    """Prefer bundled or venv executables before searching PATH."""
+    for bin_dir in _runtime_bin_dirs():
+        for candidate in (name, name + ".exe"):
+            local = os.path.join(bin_dir, candidate)
+            if os.path.isfile(local) and os.access(local, os.X_OK):
+                return local
     return shutil.which(name)
 
 
@@ -106,12 +113,12 @@ YT_DLP = _find_executable("yt-dlp") or "yt-dlp"
 
 
 def _js_runtime_opts():
-    """Pass the venv's deno path explicitly when it is available."""
-    bin_dir = _venv_bin_dir()
-    for candidate in ("deno", "deno.exe"):
-        deno = os.path.join(bin_dir, candidate)
-        if os.path.isfile(deno) and os.access(deno, os.X_OK):
-            return ["--js-runtimes", f"deno:{deno}"]
+    """Pass the bundled or venv Deno path explicitly when available."""
+    for bin_dir in _runtime_bin_dirs():
+        for candidate in ("deno", "deno.exe"):
+            deno = os.path.join(bin_dir, candidate)
+            if os.path.isfile(deno) and os.access(deno, os.X_OK):
+                return ["--js-runtimes", f"deno:{deno}"]
     return []
 
 

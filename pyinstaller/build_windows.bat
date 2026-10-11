@@ -1,9 +1,10 @@
 @echo off
-REM Default build: one-file, no console window, using the project .venv if present.
+REM Build the Windows directory bundle, using the project .venv if present.
 
 setlocal
 
 set ROOT=%~dp0..
+pushd "%ROOT%"
 if exist "%ROOT%\.venv\Scripts\python.exe" (
     set PYTHON=%ROOT%\.venv\Scripts\python.exe
 ) else (
@@ -12,10 +13,14 @@ if exist "%ROOT%\.venv\Scripts\python.exe" (
 
 echo Using Python: %PYTHON%
 %PYTHON% -m pip install pyinstaller
-if "%~1"=="" (
-    %PYTHON% pyinstaller\build_exe.py --onefile --windowed
-) else (
-    %PYTHON% pyinstaller\build_exe.py %*
+if errorlevel 1 (
+    echo Failed to install PyInstaller.
+    popd
+    exit /b 1
 )
 
-endlocal
+%PYTHON% pyinstaller\build_exe.py %*
+set BUILD_EXIT=%ERRORLEVEL%
+
+popd
+endlocal & exit /b %BUILD_EXIT%

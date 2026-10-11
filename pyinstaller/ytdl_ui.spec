@@ -1,21 +1,27 @@
 # -*- mode: python ; coding: utf-8 -*-
 from pathlib import Path
+import shutil
 import sys
 
-project_root = Path(__file__).resolve().parents[1]
-venv_root = project_root / '.venv'
+project_root = Path(SPECPATH).resolve().parent
+if sys.platform != 'win32':
+    raise SystemExit('This PyInstaller spec currently targets Windows only.')
 
-# Include the project-local yt-dlp executable in the bundle so the app can run
-# even when Python is installed elsewhere. Prefer the venv copy, fall back to
-# PATH, and always keep the build self-contained for GUI use.
-if sys.platform.startswith('win'):
-    yt_dlp_bin = venv_root / 'Scripts' / 'yt-dlp.exe'
-else:
-    yt_dlp_bin = venv_root / 'bin' / 'yt-dlp'
+yt_dlp_bin = project_root / 'build' / 'yt-dlp-runtime' / 'yt-dlp.exe'
+deno_bin = Path(sys.executable).resolve().parent / 'deno.exe'
+if not deno_bin.is_file():
+    deno_from_path = shutil.which('deno.exe') or shutil.which('deno')
+    if deno_from_path:
+        deno_bin = Path(deno_from_path)
 
-binaries = []
-if yt_dlp_bin.exists():
-    binaries = [(str(yt_dlp_bin), 'yt-dlp.exe' if sys.platform.startswith('win') else 'yt-dlp')]
+missing = [str(path) for path in (yt_dlp_bin, deno_bin) if not path.is_file()]
+if missing:
+    raise SystemExit('Missing bundled runtime(s): ' + ', '.join(missing))
+
+binaries = [
+    (str(yt_dlp_bin), '.'),
+    (str(deno_bin), '.'),
+]
 
 block_cipher = None
 
@@ -46,6 +52,7 @@ exe = EXE(
     strip=False,
     upx=True,
     console=False,
+    contents_directory='.',
 )
 
 coll = COLLECT(
@@ -55,6 +62,6 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=True,
-    upx_exclude=[],
+    upx_exclude=['yt-dlp.exe', 'deno.exe'],
     name='ytdl-ui',
 )

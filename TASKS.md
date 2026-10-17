@@ -161,6 +161,8 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [ ] Lower the logging level after beta builds
   - [ ] Add a setting to toggle logging
 
+- [ ] App version
+
 ---
 
 ## P7 — Polishing & refinements

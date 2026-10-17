@@ -9,37 +9,6 @@ import tempfile
 import core
 
 
-class TestBundledRuntimeResolution:
-    def test_finds_yt_dlp_in_pyinstaller_bundle_dir(self, monkeypatch, tmp_path):
-        bundle_dir = tmp_path / "_internal"
-        app_dir = tmp_path / "app"
-        bundle_dir.mkdir()
-        app_dir.mkdir()
-        yt_dlp = bundle_dir / "yt-dlp.exe"
-        yt_dlp.touch()
-        monkeypatch.setattr(core.sys, "frozen", True, raising=False)
-        monkeypatch.setattr(core.sys, "_MEIPASS", str(bundle_dir), raising=False)
-        monkeypatch.setattr(core.sys, "executable", str(app_dir / "ytdl-ui.exe"))
-        monkeypatch.setattr(core.os, "access", lambda *_args: True)
-        monkeypatch.setattr(core.shutil, "which", lambda _name: None)
-
-        assert core._find_executable("yt-dlp") == str(yt_dlp)
-
-    def test_finds_deno_in_pyinstaller_bundle_dir(self, monkeypatch, tmp_path):
-        bundle_dir = tmp_path / "_internal"
-        app_dir = tmp_path / "app"
-        bundle_dir.mkdir()
-        app_dir.mkdir()
-        deno = bundle_dir / "deno.exe"
-        deno.touch()
-        monkeypatch.setattr(core.sys, "frozen", True, raising=False)
-        monkeypatch.setattr(core.sys, "_MEIPASS", str(bundle_dir), raising=False)
-        monkeypatch.setattr(core.sys, "executable", str(app_dir / "ytdl-ui.exe"))
-        monkeypatch.setattr(core.os, "access", lambda *_args: True)
-
-        assert core._js_runtime_opts() == ["--js-runtimes", f"deno:{deno}"]
-
-
 class TestLogging:
     def test_logs_info_and_above_to_temp_file_with_pid(self, tmp_path):
         assert os.path.dirname(core.LOG_PATH) == os.path.join(

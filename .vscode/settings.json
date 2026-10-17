@@ -1,0 +1,20 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^& \\.venv\\\\Scripts\\\\python\\.exe -m PyInstaller --help$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\.venv\\\\Scripts\\\\python\\.exe -m pytest tests/test_formats\\.py -k BundledRuntimeResolution -q$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^\\.venv\\\\Scripts\\\\python\\.exe pyinstaller\\\\build_exe\\.py$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^& \\.venv\\\\Scripts\\\\python\\.exe -m pytest -q$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

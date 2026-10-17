@@ -1,5 +1,6 @@
 """Unit tests for the Tk-free logic in core.py."""
 
+import io
 import logging
 import os
 import subprocess
@@ -173,6 +174,109 @@ class TestOutputArgs:
         args = core.output_args("/tmp/dl")
         assert args[0] == "-o"
         assert args[1] == core.output_template("/tmp/dl")
+
+
+class TestCookieSettings:
+    def test_defaults_to_disabled_chrome(self, monkeypatch, tmp_path):
+        monkeypatch.setattr(
+            core, "cookie_settings_path", lambda: str(tmp_path / "settings.json")
+        )
+        assert core.load_cookie_settings() == (False, "chrome")
+
+    def test_persists_only_the_opt_in_and_browser(self, monkeypatch, tmp_path):
+        settings_path = tmp_path / "settings.json"
+        monkeypatch.setattr(core, "cookie_settings_path", lambda: str(settings_path))
+
+        assert core.save_cookie_settings(True, "edge") is True
+        assert core.load_cookie_settings() == (True, "edge")
+        assert settings_path.read_text(encoding="utf-8") == (
+            '{"use_browser_cookies": true, "browser": "edge"}'
+        )
+
+    def test_rejects_unknown_browser(self):
+        assert core.save_cookie_settings(True, "unknown") is False
+
+    def test_detects_windows_dpapi_cookie_decryption_error(self):
+        assert core.is_cookie_read_error("ERROR: Could not decrypt with DPAPI") is True
+
+
+class TestCookieDownloadOptions:
+    def test_browser_option_is_passed_when_selected(self, monkeypatch):
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "formats", "")
+
+        monkeypatch.setattr(core.subprocess, "run", fake_run)
+        result = core.run_download("-F", "https://youtu.be/example", cookie_browser="edge")
+
+        assert result.returncode == 0
+        assert commands[0][commands[0].index("--cookies-from-browser") + 1] == "edge"
+
+    def test_retries_once_without_cookie_option_on_cookie_read_error(self, monkeypatch):
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            if len(commands) == 1:
+                return subprocess.CompletedProcess(
+                    command, 1, "", "ERROR: Could not copy Chrome cookie database"
+                )
+            return subprocess.CompletedProcess(command, 0, "formats", "")
+
+        monkeypatch.setattr(core.subprocess, "run", fake_run)
+        result = core.run_download("-F", "https://youtu.be/example", cookie_browser="chrome")
+
+        assert result.returncode == 0
+        assert "--cookies-from-browser" in commands[0]
+        assert "--cookies-from-browser" not in commands[1]
+        assert len(commands) == 2
+
+    def test_does_not_retry_for_non_cookie_error(self, monkeypatch):
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 1, "", "HTTP Error 429")
+
+        monkeypatch.setattr(core.subprocess, "run", fake_run)
+        result = core.run_download("-F", "https://youtu.be/example", cookie_browser="chrome")
+
+        assert result.returncode == 1
+        assert len(commands) == 1
+
+    def test_live_download_retries_once_without_cookies(self, monkeypatch):
+        commands = []
+
+        class FakeProcess:
+            def __init__(self, returncode, stderr):
+                self.pid = 123
+                self.returncode = returncode
+                self.stdout = io.StringIO("")
+                self.stderr = io.StringIO(stderr)
+
+            def wait(self):
+                return self.returncode
+
+        processes = [
+            FakeProcess(1, "ERROR: Could not copy Edge cookie database"),
+            FakeProcess(0, ""),
+        ]
+
+        def fake_popen(command, **_kwargs):
+            commands.append(command)
+            return processes.pop(0)
+
+        monkeypatch.setattr(core.subprocess, "Popen", fake_popen)
+        result = core.run_download_live(
+            "https://youtu.be/example", cookie_browser="edge",
+        )
+
+        assert result == (0, "")
+        assert "--cookies-from-browser" in commands[0]
+        assert "--cookies-from-browser" not in commands[1]
+        assert len(commands) == 2
 
 
 class TestDefaultOutputDir:

@@ -15,8 +15,9 @@ import ui
 
 
 @pytest.fixture
-def app_root():
+def app_root(monkeypatch):
     """A headless Tk root with the app's widgets built, torn down after use."""
+    monkeypatch.setattr(ui.core, "load_cookie_settings", lambda: (False, "chrome"))
     try:
         root = tkinter.Tk()
     except tkinter.TclError as exc:  # no display available
@@ -92,6 +93,39 @@ class TestRunButtonState:
         ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
         ui.set_busy(True)
         assert _state(ui.run_btn) == "disabled"
+
+
+class TestBrowserCookies:
+    def test_starts_opted_out_with_browser_disabled(self, app_root):
+        assert ui.use_browser_cookies_var.get() is False
+        assert ui.cookie_browser_var.get() == "Chrome"
+        assert _state(ui.cookie_browser_combo) == "disabled"
+
+    def test_selection_is_persisted_and_enables_browser_choice(
+        self, app_root, monkeypatch,
+    ):
+        saved = []
+        monkeypatch.setattr(
+            ui.core,
+            "save_cookie_settings",
+            lambda enabled, browser: saved.append((enabled, browser)),
+        )
+
+        ui.use_browser_cookies_var.set(True)
+        ui.on_cookie_settings_changed()
+        assert _state(ui.cookie_browser_combo) == "readonly"
+        assert saved[-1] == (True, "chrome")
+
+        ui.cookie_browser_var.set("Edge")
+        ui.on_cookie_settings_changed()
+        assert saved[-1] == (True, "edge")
+
+    def test_cookie_controls_disabled_while_busy(self, app_root):
+        ui.use_browser_cookies_var.set(True)
+        ui.update_cookie_controls()
+        ui.set_busy(True)
+        assert _state(ui.cookie_browser_check) == "disabled"
+        assert _state(ui.cookie_browser_combo) == "disabled"
 
 
 def _is_gridded(widget):

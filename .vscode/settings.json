@@ -15,6 +15,14 @@
         "/^& \\.venv\\\\Scripts\\\\python\\.exe -m pytest -q$/": {
             "approve": true,
             "matchCommandLine": true
+        },
+        "/^& \\.\\\\\\.venv\\\\Scripts\\\\python\\.exe -m pytest tests/test_ui\\.py -q$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^& \\.\\\\\\.venv\\\\Scripts\\\\python\\.exe -m pytest tests/test_formats\\.py -q$/": {
+            "approve": true,
+            "matchCommandLine": true
         }
     }
 }

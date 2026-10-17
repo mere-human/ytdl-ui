@@ -1,6 +1,7 @@
 """Tk-free application logic and yt-dlp process integration."""
 
 import io
+import json
 import logging
 import os
 import shutil
@@ -18,6 +19,64 @@ log.setLevel(logging.INFO)
 log.propagate = False
 LOG_DIR = os.path.join(tempfile.gettempdir(), "ytdl-ui")
 LOG_PATH = os.path.join(LOG_DIR, f"ytdl-ui-{os.getpid()}.log")
+COOKIE_BROWSERS = {
+    "Chrome": "chrome",
+    "Edge": "edge",
+    "Firefox": "firefox",
+    "Brave": "brave",
+}
+
+
+def cookie_settings_path():
+    """Return the per-user path used to remember the cookie preference."""
+    if sys.platform == "win32":
+        settings_dir = (
+            os.environ.get("LOCALAPPDATA")
+            or os.environ.get("APPDATA")
+            or os.path.expanduser("~")
+        )
+    elif sys.platform == "darwin":
+        settings_dir = os.path.join(os.path.expanduser("~"), "Library", "Application Support")
+    else:
+        settings_dir = os.environ.get(
+            "XDG_CONFIG_HOME", os.path.join(os.path.expanduser("~"), ".config")
+        )
+    return os.path.join(settings_dir, "ytdl-ui", "settings.json")
+
+
+def load_cookie_settings():
+    """Load the opt-in and browser name; never persist browser cookie data."""
+    try:
+        with open(cookie_settings_path(), encoding="utf-8") as settings_file:
+            settings = json.load(settings_file)
+    except FileNotFoundError:
+        return False, "chrome"
+    except (OSError, json.JSONDecodeError) as exc:
+        log.warning("load_cookie_settings: %s", exc)
+        return False, "chrome"
+
+    browser = settings.get("browser") if isinstance(settings, dict) else None
+    if browser not in COOKIE_BROWSERS.values():
+        return False, "chrome"
+    return settings.get("use_browser_cookies") is True, browser
+
+
+def save_cookie_settings(enabled, browser):
+    """Persist only the user's browser-cookie preference."""
+    if browser not in COOKIE_BROWSERS.values():
+        return False
+    path = cookie_settings_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as settings_file:
+            json.dump(
+                {"use_browser_cookies": bool(enabled), "browser": browser},
+                settings_file,
+            )
+    except OSError as exc:
+        log.warning("save_cookie_settings: %s", exc)
+        return False
+    return True
 
 
 def configure_logging(log_dir=None):
@@ -128,7 +187,8 @@ RATE_LIMITED_MSG = (
     "\n"
     "Try the following:\n"
     "  - Wait a few minutes before retrying.\n"
-    "  - Update yt-dlp: pip install -U yt-dlp\n"
+    "  - Enable browser cookies if YouTube asks you to sign in or solve a CAPTCHA.\n"
+    "  - Update yt-dlp; a bundled build must be rebuilt or have yt-dlp.exe replaced.\n"
     "  - Avoid checking many URLs in quick succession."
 )
 
@@ -151,6 +211,33 @@ def is_rate_limited(text):
         return False
     lowered = text.lower()
     return "429" in text or "too many requests" in lowered
+
+
+def is_cookie_read_error(text):
+    """Identify yt-dlp errors that indicate browser cookies could not be read."""
+    if not text:
+        return False
+    lowered = text.lower()
+    if "dpapi" in lowered and "decrypt" in lowered:
+        return True
+    return "cookie" in lowered and any(
+        phrase in lowered
+        for phrase in (
+            "could not copy",
+            "could not find",
+            "failed to decrypt",
+            "could not decrypt",
+            "failed to load",
+            "no cookies",
+        )
+    )
+
+
+def cookie_args(browser):
+    """Return yt-dlp cookie flags for a recognized browser, if selected."""
+    if browser not in COOKIE_BROWSERS.values():
+        return []
+    return ["--cookies-from-browser", browser]
 
 
 def parse_formats(output):
@@ -274,9 +361,10 @@ def partial_file_note(target):
     return f"Partial file left on disk:\n  {which}"
 
 
-def run_download(*args):
+def run_download(*args, cookie_browser=None):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
-    cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
+    cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS,
+           *cookie_args(cookie_browser), *args]
     log.info("run_download: starting: %s", " ".join(cmd))
     try:
         ret = subprocess.run(
@@ -288,15 +376,19 @@ def run_download(*args):
         )
         if ret.returncode != 0:
             log.error("run_download: yt-dlp failed rc=%s stderr=%r", ret.returncode, ret.stderr)
+            if cookie_browser and is_cookie_read_error(ret.stderr):
+                log.warning("run_download: browser cookies could not be read; retrying without cookies")
+                return run_download(*args)
         return ret
     except FileNotFoundError:
         log.error("run_download: yt-dlp not found at %s", YT_DLP)
         return None
 
 
-def run_download_live(*args, on_line=None):
+def run_download_live(*args, on_line=None, cookie_browser=None):
     """Run yt-dlp with live line-by-line output via on_line callback."""
-    cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS, *args]
+    cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS,
+           *cookie_args(cookie_browser), *args]
     log.info("run_download_live: starting: %s", " ".join(cmd))
     try:
         proc = subprocess.Popen(
@@ -310,6 +402,7 @@ def run_download_live(*args, on_line=None):
         log.error("run_download_live: yt-dlp not found at %s", YT_DLP)
         return None
 
+    assert proc.stdout is not None and proc.stderr is not None
     process_controller.register(proc)
     try:
         for line in proc.stdout:
@@ -327,4 +420,7 @@ def run_download_live(*args, on_line=None):
     )
     if proc.returncode != 0:
         log.error("run_download_live: yt-dlp failed rc=%s stderr=%r", proc.returncode, stderr)
+        if cookie_browser and is_cookie_read_error(stderr):
+            log.warning("run_download_live: browser cookies could not be read; retrying without cookies")
+            return run_download_live(*args, on_line=on_line)
     return proc.returncode, stderr

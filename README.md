@@ -85,7 +85,9 @@ Deactivate the venv when done with `deactivate`.
 ## Usage
 
 1. Start the app: `python main.py`
-2. Paste the video URL e.g. https://www.youtube.com/watch?v=dQw4w9WgXcQ
+2. Paste the video URL. Example
+   - https://www.youtube.com/watch?v=dQw4w9WgXcQ
+   - https://www.youtube.com/watch?v=y6120QOlsfU
 3. Press "Check"
 4. (Optional) Pick a format from the **Format** dropdown that appears — leave
    it on "best (default)" to let yt-dlp choose the best quality automatically.
@@ -95,6 +97,12 @@ Deactivate the venv when done with `deactivate`.
    **Browse...** to pick another folder.
 6. Press "Download"
 7. Find the file in the selected folder.
+
+To use your browser's YouTube session, enable **Use browser cookies** and
+choose Chrome, Edge, Firefox, or Brave. yt-dlp reads cookies from that browser
+for both checking and downloading. The app remembers only the opt-in and
+browser selection; it does not store cookie data. Close the browser first if
+yt-dlp reports that it cannot read the browser's cookie database.
 
 To cancel a download in progress, press **Stop** (it appears next to the
 Download button while downloading). yt-dlp keeps the partially downloaded
@@ -108,7 +116,10 @@ The app automatically retries with backoff and sleeps between requests to
 reduce this. If you still get rate limited, the info panel shows guidance:
 
 - Wait a few minutes before retrying.
-- Update yt-dlp: `pip install -U yt-dlp`
+- If YouTube asks you to sign in or solve a CAPTCHA, enable **Use browser
+   cookies** after completing the challenge in your browser.
+- Update yt-dlp. For a prebuilt bundle, rebuild it or replace the bundled
+   `yt-dlp.exe`; updating a separate Python installation does not update it.
 - Avoid checking many URLs in quick succession.
 
 ## Development

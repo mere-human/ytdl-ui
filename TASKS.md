@@ -69,10 +69,11 @@ Minimum viable “check → pick → download” experience.
   - [✓] Stop button appears only during a download; cancels the running yt-dlp process (`terminate()`, then `kill()` after a grace period).
   - [✓] Leaves partial `.part` files on disk and shows the path in the info panel.
   - [✓] Returns to the `info` state so the download can be retried without re-checking.
-- [ ] **Cookies from browser (for rate limits / auth)**
-  - [ ] Add a UI control to let the user opt in and choose a browser
-  - [ ] Pass `--cookies-from-browser <browser>` to yt-dlp when set
-  - [ ] Once available, re-add it as a suggestion in the HTTP 429 guidance
+- [~] **Cookies from browser (for rate limits / auth)**
+  - [✓] Add a UI control to let the user opt in and choose a browser
+  - [✓] Pass `--cookies-from-browser <browser>` to yt-dlp when set
+  - [✓] Once available, re-add it as a suggestion in the HTTP 429 guidance
+  - [ ] Allow selecting a manually downloaded cookie file
 
 ---
 

@@ -1,6 +1,7 @@
 """Unit tests for the Tk-free logic in core.py."""
 
 import io
+import json
 import logging
 import os
 import subprocess
@@ -177,21 +178,28 @@ class TestOutputArgs:
 
 
 class TestCookieSettings:
-    def test_defaults_to_disabled_chrome(self, monkeypatch, tmp_path):
+    def test_defaults_to_firefox_on_windows(self, monkeypatch, tmp_path):
         monkeypatch.setattr(
             core, "cookie_settings_path", lambda: str(tmp_path / "settings.json")
         )
-        assert core.load_cookie_settings() == (False, "chrome")
+        monkeypatch.setattr(core.sys, "platform", "win32")
+        assert core.load_cookie_settings() == (False, "firefox")
 
-    def test_persists_only_the_opt_in_and_browser(self, monkeypatch, tmp_path):
+    def test_persists_browser_and_cookie_file_preferences(self, monkeypatch, tmp_path):
         settings_path = tmp_path / "settings.json"
         monkeypatch.setattr(core, "cookie_settings_path", lambda: str(settings_path))
 
-        assert core.save_cookie_settings(True, "edge") is True
+        cookie_file = str(tmp_path / "cookies.txt")
+        assert core.save_cookie_settings(True, "edge", cookie_file, "file") is True
         assert core.load_cookie_settings() == (True, "edge")
-        assert settings_path.read_text(encoding="utf-8") == (
-            '{"use_browser_cookies": true, "browser": "edge"}'
-        )
+        assert core.load_cookie_file_settings() == (cookie_file, "file")
+        settings = json.loads(settings_path.read_text(encoding="utf-8"))
+        assert settings == {
+            "use_browser_cookies": True,
+            "browser": "edge",
+            "cookie_file": cookie_file,
+            "cookie_source": "file",
+        }
 
     def test_rejects_unknown_browser(self):
         assert core.save_cookie_settings(True, "unknown") is False
@@ -213,6 +221,45 @@ class TestCookieDownloadOptions:
 
         assert result.returncode == 0
         assert commands[0][commands[0].index("--cookies-from-browser") + 1] == "edge"
+
+    def test_cookie_file_is_passed_to_yt_dlp(self, monkeypatch, tmp_path):
+        commands = []
+
+        def fake_run(command, **_kwargs):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 0, "formats", "")
+
+        monkeypatch.setattr(core.subprocess, "run", fake_run)
+        cookie_file = str(tmp_path / "cookies.txt")
+        result = core.run_download(
+            "-F", "https://youtu.be/example", cookie_file=cookie_file,
+        )
+
+        assert result.returncode == 0
+        cookie_index = commands[0].index("--cookies")
+        assert commands[0][cookie_index + 1] == cookie_file
+
+
+class TestJavaScriptRuntimeOptions:
+    def test_enables_ejs_github_component_with_local_deno(
+        self, monkeypatch, tmp_path,
+    ):
+        deno = tmp_path / "deno.exe"
+        deno.touch()
+        monkeypatch.setattr(core, "_venv_bin_dir", lambda: str(tmp_path))
+        monkeypatch.setattr(core.os, "access", lambda *_args: True)
+
+        assert core._js_runtime_opts() == [
+            "--js-runtimes", f"deno:{deno}",
+            "--remote-components", "ejs:github",
+        ]
+
+    def test_enables_ejs_github_component_without_local_deno(
+        self, monkeypatch, tmp_path,
+    ):
+        monkeypatch.setattr(core, "_venv_bin_dir", lambda: str(tmp_path))
+
+        assert core._js_runtime_opts() == ["--remote-components", "ejs:github"]
 
     def test_retries_once_without_cookie_option_on_cookie_read_error(self, monkeypatch):
         commands = []

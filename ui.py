@@ -6,6 +6,7 @@ from tkinter import E, END, N, S, VERTICAL, W, BooleanVar, StringVar, Text, Tk
 from tkinter import ttk
 from tkinter import filedialog
 import queue
+import os
 import threading
 
 import core
@@ -88,6 +89,22 @@ def selected_cookie_browser():
     return core.COOKIE_BROWSERS.get(cookie_browser_var.get())
 
 
+def selected_cookie_file():
+    """Return the selected cookie file when file mode is active."""
+    if cookie_source_var.get() == "file":
+        return cookie_file_var.get() or None
+    return None
+
+
+def update_cookie_file_label():
+    """Show the active cookie-file path without making it editable."""
+    if cookie_source_var.get() == "file" and cookie_file_var.get():
+        cookie_file_label.configure(text=f"Cookie file: {cookie_file_var.get()}")
+        cookie_file_label.grid()
+    else:
+        cookie_file_label.grid_remove()
+
+
 def update_cookie_controls():
     """Disable cookie settings during work and the browser when opted out."""
     cookie_browser_check.configure(state='disabled' if state.busy else 'normal')
@@ -100,9 +117,47 @@ def update_cookie_controls():
 
 def on_cookie_settings_changed(*_args):
     """Persist the selected browser and whether cookie access is enabled."""
-    browser = selected_cookie_browser() or "chrome"
-    core.save_cookie_settings(use_browser_cookies_var.get(), browser)
+    browser = selected_cookie_browser() or core.COOKIE_BROWSERS.get(
+        cookie_previous_browser_var.get(), "chrome",
+    )
+    core.save_cookie_settings(
+        use_browser_cookies_var.get(), browser,
+        cookie_file_var.get(), cookie_source_var.get(),
+    )
+    update_cookie_file_label()
     update_cookie_controls()
+
+
+def choose_cookie_file():
+    """Open a cookie-file picker and activate the chosen file source."""
+    current_file = cookie_file_var.get()
+    chosen = filedialog.askopenfilename(
+        title="Choose cookie file",
+        initialdir=os.path.dirname(current_file) if current_file else None,
+        filetypes=(("Cookie files", "*.txt"), ("All files", "*.*")),
+    )
+    if not chosen:
+        return False
+    cookie_file_var.set(chosen)
+    cookie_source_var.set("file")
+    cookie_browser_var.set("Browse...")
+    on_cookie_settings_changed()
+    log.info("choose_cookie_file: selected %r", chosen)
+    return True
+
+
+def on_cookie_browser_selected(*_args):
+    """Handle browser choices and the final Browse... combo item."""
+    if cookie_browser_var.get() == "Browse...":
+        if not choose_cookie_file():
+            cookie_browser_var.set(
+                "Browse..." if cookie_source_var.get() == "file"
+                else cookie_previous_browser_var.get()
+            )
+        return
+    cookie_previous_browser_var.set(cookie_browser_var.get())
+    cookie_source_var.set("browser")
+    on_cookie_settings_changed()
 
 
 def update_run_btn_state(*_args):
@@ -266,7 +321,7 @@ def on_download_complete(returncode, stderr, cancelled=False, target=None):
     set_busy(False)
 
 
-def run_check_in_thread(url, cookie_browser=None):
+def run_check_in_thread(url, cookie_browser=None, cookie_file=None):
     """Run format check in background; post result to main thread."""
     def worker():
         log.info("check worker: started for url=%r", url)
@@ -274,6 +329,7 @@ def run_check_in_thread(url, cookie_browser=None):
             ret = run_download(
                 "--print", THUMB_PRINT_TEMPLATE, "-F", url,
                 cookie_browser=cookie_browser,
+                cookie_file=cookie_file,
             )
         except Exception:
             # Without this, an exception silently kills the thread and the UI
@@ -294,7 +350,9 @@ def run_check_in_thread(url, cookie_browser=None):
     thread.start()
 
 
-def run_download_in_thread(url, fmt_id=None, out_dir=None, cookie_browser=None):
+def run_download_in_thread(
+    url, fmt_id=None, out_dir=None, cookie_browser=None, cookie_file=None,
+):
     """Run download in background with live output; post result to main thread."""
     def worker():
         log.info("download worker: started for url=%r fmt=%r out_dir=%r", url, fmt_id, out_dir)
@@ -316,6 +374,7 @@ def run_download_in_thread(url, fmt_id=None, out_dir=None, cookie_browser=None):
         try:
             result = run_download_live(
                 *args, on_line=on_line, cookie_browser=cookie_browser,
+                cookie_file=cookie_file,
             )
         except Exception:
             log.exception("download worker: unexpected error")
@@ -352,19 +411,18 @@ def run_btn_press(*args):
         state.phase = 'info'
         hide_thumbnail()
         set_busy(True)
-        cookie_browser = (
-            selected_cookie_browser() if use_browser_cookies_var.get() else None
-        )
-        run_check_in_thread(url_var.get(), cookie_browser)
+        cookie_browser = selected_cookie_browser() if use_browser_cookies_var.get() else None
+        cookie_file = selected_cookie_file() if use_browser_cookies_var.get() else None
+        run_check_in_thread(url_var.get(), cookie_browser, cookie_file)
     elif state.phase == 'info':
         info_var.set('Downloading...')
         set_busy(True)
         show_stop()
-        cookie_browser = (
-            selected_cookie_browser() if use_browser_cookies_var.get() else None
-        )
+        cookie_browser = selected_cookie_browser() if use_browser_cookies_var.get() else None
+        cookie_file = selected_cookie_file() if use_browser_cookies_var.get() else None
         run_download_in_thread(
-            url_var.get(), selected_format_id(), output_dir_var.get(), cookie_browser,
+            url_var.get(), selected_format_id(), output_dir_var.get(),
+            cookie_browser, cookie_file,
         )
 
 
@@ -397,7 +455,8 @@ def build_ui(root):
     global run_btn_var, run_btn, stop_btn, format_label, format_var, format_combo
     global output_dir_label, output_dir_var, output_dir_value, browse_btn
     global cookie_options_frame, use_browser_cookies_var, cookie_browser_var
-    global cookie_browser_check, cookie_browser_combo
+    global cookie_browser_check, cookie_browser_combo, cookie_file_label
+    global cookie_file_var, cookie_source_var, cookie_previous_browser_var
     global content_frame, thumb_label, info_frame, info_var, info_text, info_scroll
 
     root.title("Video Downloader")
@@ -441,14 +500,21 @@ def build_ui(root):
     )
     browse_btn = ttk.Button(frame, text="Browse...", command=choose_output_dir)
     cookies_enabled, cookie_browser = core.load_cookie_settings()
+    cookie_file, cookie_source = core.load_cookie_file_settings()
     use_browser_cookies_var = BooleanVar(value=cookies_enabled)
-    cookie_browser_var = StringVar(
-        value=next(
-            (label for label, value in core.COOKIE_BROWSERS.items()
-             if value == cookie_browser),
-            "Chrome",
-        )
+    browser_label = next(
+        (label for label, value in core.COOKIE_BROWSERS.items()
+         if value == cookie_browser),
+        "Chrome",
     )
+    if cookie_source != "file" or not cookie_file:
+        cookie_source = "browser"
+    cookie_browser_var = StringVar(
+        value="Browse..." if cookie_source == "file" else browser_label
+    )
+    cookie_previous_browser_var = StringVar(value=browser_label)
+    cookie_file_var = StringVar(value=cookie_file)
+    cookie_source_var = StringVar(value=cookie_source)
     cookie_options_frame = ttk.Frame(frame)
     cookie_browser_check = ttk.Checkbutton(
         cookie_options_frame,
@@ -460,12 +526,13 @@ def build_ui(root):
         cookie_options_frame,
         textvariable=cookie_browser_var,
         state="readonly",
-        values=list(core.COOKIE_BROWSERS),
+        values=[*core.COOKIE_BROWSERS, "Browse..."],
         width=12,
     )
     cookie_browser_combo.bind(
-        "<<ComboboxSelected>>", on_cookie_settings_changed,
+        "<<ComboboxSelected>>", on_cookie_browser_selected,
     )
+    cookie_file_label = ttk.Label(cookie_options_frame, text="", wraplength=500)
     content_frame = ttk.Frame(frame)
     # Preview appears after a successful check; hidden until then.
     thumb_label = ttk.Label(content_frame)
@@ -475,7 +542,7 @@ def build_ui(root):
     # Text widget (not a Label) with a vertical Scrollbar. It's kept read-only
     # (state='disabled') and synced from info_var via a trace (_sync_info_text)
     # so all existing info_var.set(...) call sites keep working unchanged.
-    info_text = Text(info_frame, width=40, height=10, wrap='none',
+    info_text = Text(info_frame, width=40, height=10, wrap='word',
                      state='disabled', borderwidth=0)
     info_scroll = ttk.Scrollbar(info_frame, orient=VERTICAL,
                                 command=info_text.yview)
@@ -496,6 +563,7 @@ def build_ui(root):
     cookie_browser_check.grid(column=0, row=0, sticky=W)
     ttk.Label(cookie_options_frame, text="Browser:").grid(column=1, row=0, sticky=E)
     cookie_browser_combo.grid(column=2, row=0, sticky=W)
+    cookie_file_label.grid(column=0, row=1, columnspan=4, sticky=W)
     content_frame.grid(column=1, row=5, columnspan=4, sticky=(N, W, E, S))
     thumb_label.grid(column=0, row=0, sticky=N, padx=(0, 8))
     info_frame.grid(column=1, row=0, sticky=(N, W, E, S))
@@ -526,6 +594,7 @@ def build_ui(root):
     stop_btn.grid_remove()
 
     update_cookie_controls()
+    update_cookie_file_label()
     # URL starts empty, so the run button starts disabled.
     update_run_btn_state()
 

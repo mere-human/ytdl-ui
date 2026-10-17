@@ -18,6 +18,7 @@ import ui
 def app_root(monkeypatch):
     """A headless Tk root with the app's widgets built, torn down after use."""
     monkeypatch.setattr(ui.core, "load_cookie_settings", lambda: (False, "chrome"))
+    monkeypatch.setattr(ui.core, "load_cookie_file_settings", lambda: ("", "browser"))
     try:
         root = tkinter.Tk()
     except tkinter.TclError as exc:  # no display available
@@ -108,17 +109,52 @@ class TestBrowserCookies:
         monkeypatch.setattr(
             ui.core,
             "save_cookie_settings",
-            lambda enabled, browser: saved.append((enabled, browser)),
+            lambda enabled, browser, cookie_file="", cookie_source="browser":
+                saved.append((enabled, browser, cookie_file, cookie_source)),
         )
 
         ui.use_browser_cookies_var.set(True)
         ui.on_cookie_settings_changed()
         assert _state(ui.cookie_browser_combo) == "readonly"
-        assert saved[-1] == (True, "chrome")
+        assert saved[-1] == (True, "chrome", "", "browser")
 
         ui.cookie_browser_var.set("Edge")
         ui.on_cookie_settings_changed()
-        assert saved[-1] == (True, "edge")
+        assert saved[-1] == (True, "edge", "", "browser")
+
+    def test_browse_is_the_last_combo_option(self, app_root):
+        assert ui.cookie_browser_combo.cget("values")[-1] == "Browse..."
+
+    def test_browse_selects_and_persists_cookie_file(self, app_root, monkeypatch):
+        saved = []
+        cookie_file = r"C:\Users\me\Downloads\cookies.txt"
+        monkeypatch.setattr(
+            ui.filedialog, "askopenfilename", lambda **_kwargs: cookie_file,
+        )
+        monkeypatch.setattr(
+            ui.core,
+            "save_cookie_settings",
+            lambda enabled, browser, path="", source="browser":
+                saved.append((enabled, browser, path, source)),
+        )
+
+        ui.cookie_browser_var.set("Browse...")
+        ui.on_cookie_browser_selected()
+
+        assert ui.cookie_browser_var.get() == "Browse..."
+        assert ui.selected_cookie_browser() is None
+        assert ui.selected_cookie_file() == cookie_file
+        assert ui.cookie_file_label.cget("text") == f"Cookie file: {cookie_file}"
+        assert saved[-1] == (False, "chrome", cookie_file, "file")
+
+    def test_cancelled_picker_restores_browser_choice(self, app_root, monkeypatch):
+        monkeypatch.setattr(ui.filedialog, "askopenfilename", lambda **_kwargs: "")
+        ui.cookie_browser_var.set("Browse...")
+
+        ui.on_cookie_browser_selected()
+
+        assert ui.cookie_browser_var.get() == "Chrome"
+        assert ui.selected_cookie_browser() == "chrome"
 
     def test_cookie_controls_disabled_while_busy(self, app_root):
         ui.use_browser_cookies_var.set(True)

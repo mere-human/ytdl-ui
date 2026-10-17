@@ -69,11 +69,11 @@ Minimum viable “check → pick → download” experience.
   - [✓] Stop button appears only during a download; cancels the running yt-dlp process (`terminate()`, then `kill()` after a grace period).
   - [✓] Leaves partial `.part` files on disk and shows the path in the info panel.
   - [✓] Returns to the `info` state so the download can be retried without re-checking.
-- [~] **Cookies from browser (for rate limits / auth)**
+- [✓] **Cookies from browser (for rate limits / auth)**
   - [✓] Add a UI control to let the user opt in and choose a browser
   - [✓] Pass `--cookies-from-browser <browser>` to yt-dlp when set
   - [✓] Once available, re-add it as a suggestion in the HTTP 429 guidance
-  - [ ] Allow selecting a manually downloaded cookie file
+  - [✓] Allow selecting a manually downloaded cookie file
 
 ---
 
@@ -85,8 +85,8 @@ Make format lists and progress readable.
   - [✓] Replace single `ttk.Label` with `Text` + `Scrollbar` (or `ScrolledText`)
 - [ ] **Copy from info panel**
   - [ ] Allow selecting and copying text (e.g. Ctrl+C, standard context menu)
-- [ ] **Wrap text**
-  - [ ] Enable word wrap for long lines in the info area
+- [✓] **Wrap text**
+  - [✓] Enable word wrap for long lines in the info area
 - [ ] **Live status while downloading**
   - [ ] Stream or poll yt-dlp output during download
   - [ ] Show progress/status updates in the info panel

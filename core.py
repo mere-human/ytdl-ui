@@ -44,33 +44,60 @@ def cookie_settings_path():
     return os.path.join(settings_dir, "ytdl-ui", "settings.json")
 
 
-def load_cookie_settings():
-    """Load the opt-in and browser name; never persist browser cookie data."""
+def _default_cookie_browser():
+    return "firefox" if sys.platform == "win32" else "chrome"
+
+
+def _read_cookie_settings():
     try:
         with open(cookie_settings_path(), encoding="utf-8") as settings_file:
             settings = json.load(settings_file)
     except FileNotFoundError:
-        return False, "chrome"
+        return {}
     except (OSError, json.JSONDecodeError) as exc:
         log.warning("load_cookie_settings: %s", exc)
-        return False, "chrome"
+        return {}
+    return settings if isinstance(settings, dict) else {}
 
-    browser = settings.get("browser") if isinstance(settings, dict) else None
+
+def load_cookie_settings():
+    """Load the opt-in and browser name; never persist browser cookie data."""
+    settings = _read_cookie_settings()
+    browser = settings.get("browser")
     if browser not in COOKIE_BROWSERS.values():
-        return False, "chrome"
+        browser = _default_cookie_browser()
     return settings.get("use_browser_cookies") is True, browser
 
 
-def save_cookie_settings(enabled, browser):
-    """Persist only the user's browser-cookie preference."""
+def load_cookie_file_settings():
+    """Load the selected cookie file and whether it is the active source."""
+    settings = _read_cookie_settings()
+    cookie_file = settings.get("cookie_file")
+    if not isinstance(cookie_file, str) or not cookie_file:
+        cookie_file = ""
+    source = settings.get("cookie_source")
+    if source not in ("browser", "file"):
+        source = "browser"
+    return cookie_file, source
+
+
+def save_cookie_settings(enabled, browser, cookie_file="", cookie_source="browser"):
+    """Persist cookie preferences and a path, never the cookie data itself."""
     if browser not in COOKIE_BROWSERS.values():
+        return False
+    if cookie_source not in ("browser", "file"):
         return False
     path = cookie_settings_path()
     try:
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as settings_file:
             json.dump(
-                {"use_browser_cookies": bool(enabled), "browser": browser},
+                {
+                    "use_browser_cookies": bool(enabled),
+                    "browser": browser,
+                    "cookie_file": cookie_file or "",
+                    "cookie_source": cookie_source,
+                },
                 settings_file,
             )
     except OSError as exc:
@@ -165,13 +192,16 @@ YT_DLP = _find_executable("yt-dlp") or "yt-dlp"
 
 
 def _js_runtime_opts():
-    """Pass the venv's deno path explicitly when it is available."""
+    """Pass the venv Deno path and enable yt-dlp's EJS challenge component."""
     bin_dir = _venv_bin_dir()
+    opts = []
     for candidate in ("deno", "deno.exe"):
         deno = os.path.join(bin_dir, candidate)
         if os.path.isfile(deno) and os.access(deno, os.X_OK):
-            return ["--js-runtimes", f"deno:{deno}"]
-    return []
+            opts.extend(["--js-runtimes", f"deno:{deno}"])
+            break
+    opts.extend(["--remote-components", "ejs:github"])
+    return opts
 
 
 JS_RUNTIME_OPTS = _js_runtime_opts()
@@ -187,9 +217,19 @@ RATE_LIMITED_MSG = (
     "\n"
     "Try the following:\n"
     "  - Wait a few minutes before retrying.\n"
-    "  - Enable browser cookies if YouTube asks you to sign in or solve a CAPTCHA.\n"
     "  - Update yt-dlp; a bundled build must be rebuilt or have yt-dlp.exe replaced.\n"
-    "  - Avoid checking many URLs in quick succession."
+    "  - Avoid checking many URLs in quick succession.\n"
+    "\n"
+    "Cookies (when YouTube requires sign-in or a CAPTCHA):\n"
+    "  - On Windows, Firefox is the recommended browser-cookie option. Install it and retry.\n"
+    "  - For Chrome or Edge, browser cookie decryption may fail on Windows.\n"
+    "    1. Install a 'Get cookies.txt' extension such as "
+    "https://chromewebstore.google.com/detail/get-cookiestxt-locally/"
+    "cclelndahbckbenkjhflpdbgdldlbecc?pli=1 in order to download the file.\n"
+    "    2. Sign in to YouTube, then use the extension to export its cookies.\n"
+    "    3. Enable Use browser cookies and choose Browse... to select the file.\n"
+    "  - The selected cookie file is remembered between sessions.\n"
+    "  - More details: https://github.com/yt-dlp/yt-dlp/issues/10927"
 )
 
 RATE_LIMIT_OPTS = [
@@ -238,6 +278,13 @@ def cookie_args(browser):
     if browser not in COOKIE_BROWSERS.values():
         return []
     return ["--cookies-from-browser", browser]
+
+
+def cookie_file_args(cookie_file):
+    """Return yt-dlp cookie-file flags when a file is selected."""
+    if not cookie_file:
+        return []
+    return ["--cookies", os.fspath(cookie_file)]
 
 
 def parse_formats(output):
@@ -361,10 +408,10 @@ def partial_file_note(target):
     return f"Partial file left on disk:\n  {which}"
 
 
-def run_download(*args, cookie_browser=None):
+def run_download(*args, cookie_browser=None, cookie_file=None):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS,
-           *cookie_args(cookie_browser), *args]
+           *cookie_args(cookie_browser), *cookie_file_args(cookie_file), *args]
     log.info("run_download: starting: %s", " ".join(cmd))
     try:
         ret = subprocess.run(
@@ -376,8 +423,8 @@ def run_download(*args, cookie_browser=None):
         )
         if ret.returncode != 0:
             log.error("run_download: yt-dlp failed rc=%s stderr=%r", ret.returncode, ret.stderr)
-            if cookie_browser and is_cookie_read_error(ret.stderr):
-                log.warning("run_download: browser cookies could not be read; retrying without cookies")
+            if (cookie_browser or cookie_file) and is_cookie_read_error(ret.stderr):
+                log.warning("run_download: cookies could not be read; retrying without cookies")
                 return run_download(*args)
         return ret
     except FileNotFoundError:
@@ -385,10 +432,10 @@ def run_download(*args, cookie_browser=None):
         return None
 
 
-def run_download_live(*args, on_line=None, cookie_browser=None):
+def run_download_live(*args, on_line=None, cookie_browser=None, cookie_file=None):
     """Run yt-dlp with live line-by-line output via on_line callback."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS,
-           *cookie_args(cookie_browser), *args]
+           *cookie_args(cookie_browser), *cookie_file_args(cookie_file), *args]
     log.info("run_download_live: starting: %s", " ".join(cmd))
     try:
         proc = subprocess.Popen(
@@ -420,7 +467,7 @@ def run_download_live(*args, on_line=None, cookie_browser=None):
     )
     if proc.returncode != 0:
         log.error("run_download_live: yt-dlp failed rc=%s stderr=%r", proc.returncode, stderr)
-        if cookie_browser and is_cookie_read_error(stderr):
-            log.warning("run_download_live: browser cookies could not be read; retrying without cookies")
+        if (cookie_browser or cookie_file) and is_cookie_read_error(stderr):
+            log.warning("run_download_live: cookies could not be read; retrying without cookies")
             return run_download_live(*args, on_line=on_line)
     return proc.returncode, stderr

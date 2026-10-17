@@ -98,11 +98,22 @@ Deactivate the venv when done with `deactivate`.
 6. Press "Download"
 7. Find the file in the selected folder.
 
-To use your browser's YouTube session, enable **Use browser cookies** and
-choose Chrome, Edge, Firefox, or Brave. yt-dlp reads cookies from that browser
-for both checking and downloading. The app remembers only the opt-in and
-browser selection; it does not store cookie data. Close the browser first if
-yt-dlp reports that it cannot read the browser's cookie database.
+To use your YouTube session, enable **Use browser cookies** and choose a
+browser. On Windows, Firefox is the recommended browser-cookie option. The app
+remembers the opt-in and selected source between sessions. For a cookie file,
+it stores only the file path, not the cookie contents.
+
+Chrome or Edge may fail to decrypt browser cookies on Windows. To use an
+exported cookie file:
+
+1. Install a 'Get cookies.txt' extension such as
+   https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc?pli=1
+   in order to download the file.
+2. Sign in to YouTube in Chrome or Edge, then use the extension to export the
+   site's cookies to a text file.
+3. Enable **Use browser cookies**, choose **Browse...** in the Browser dropdown,
+   and select the downloaded file. The app uses it for both checking and
+   downloading.
 
 To cancel a download in progress, press **Stop** (it appears next to the
 Download button while downloading). yt-dlp keeps the partially downloaded
@@ -117,10 +128,14 @@ reduce this. If you still get rate limited, the info panel shows guidance:
 
 - Wait a few minutes before retrying.
 - If YouTube asks you to sign in or solve a CAPTCHA, enable **Use browser
-   cookies** after completing the challenge in your browser.
+   cookies**. On Windows, Firefox is recommended. For Chrome or Edge, follow
+   the cookie-file export steps above and select the file with **Browse...**.
 - Update yt-dlp. For a prebuilt bundle, rebuild it or replace the bundled
    `yt-dlp.exe`; updating a separate Python installation does not update it.
 - Avoid checking many URLs in quick succession.
+
+For background on Chrome cookie decryption failures and workarounds, see
+https://github.com/yt-dlp/yt-dlp/issues/10927.
 
 ## Development
 

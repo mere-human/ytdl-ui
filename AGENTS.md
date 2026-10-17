@@ -47,8 +47,9 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 - **JS runtime**: YouTube signature/challenge solving needs a JavaScript
   runtime. `deno` is a `requirements.txt` dependency (installed into the venv);
   `core.py` passes `--js-runtimes deno:<venv>/bin/deno` explicitly so it works
-  regardless of PATH. yt-dlp only auto-enables deno, and Node additionally
-  needs `--remote-components ejs:github`, so deno is the simpler choice.
+  regardless of PATH. `core.py` also passes `--remote-components ejs:github`
+  so yt-dlp can fetch the EJS challenge solver required by current YouTube
+  signatures.
 - For PyInstaller builds, consider bundling yt-dlp (and deno) or documenting how users obtain them alongside the exe.
 
 ### UI (Tkinter)

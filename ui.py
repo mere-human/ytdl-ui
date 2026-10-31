@@ -36,6 +36,7 @@ from core import (
 class AppState:
     phase: str = "init"
     busy: bool = False
+    checked_url: str = ""
 
 
 state = AppState()
@@ -250,6 +251,19 @@ def on_cookie_browser_selected(*_args):
     cookie_previous_browser_var.set(cookie_browser_var.get())
     cookie_source_var.set("browser")
     on_cookie_settings_changed()
+
+
+def on_url_changed(*_args):
+    """Drop stale check results when the URL no longer matches the checked one."""
+    if (state.phase == 'info' and not state.busy
+            and url_var.get() != state.checked_url):
+        log.info("on_url_changed: url changed after check, resetting to init")
+        state.phase = 'init'
+        run_btn_var.set("check")
+        info_var.set("")
+        hide_formats()
+        hide_thumbnail()
+    update_run_btn_state()
 
 
 def update_run_btn_state(*_args):
@@ -540,6 +554,7 @@ def run_btn_press(*args):
     if state.phase == 'init':
         info_var.set('Getting info...')
         state.phase = 'info'
+        state.checked_url = url_var.get()
         hide_thumbnail()
         set_busy(True)
         cookie_browser = selected_cookie_browser() if use_browser_cookies_var.get() else None
@@ -623,7 +638,7 @@ def build_ui(root):
     # Stop appears only while a download runs (see show_stop/hide_stop).
     stop_btn = ttk.Button(frame, text="Stop", command=stop_btn_press)
     # Recompute the run button's enabled state as the URL text changes.
-    url_var.trace_add("write", update_run_btn_state)
+    url_var.trace_add("write", on_url_changed)
     format_details = []
     subtitle_langs = []
     format_label = ttk.Label(frame, text="Format:")

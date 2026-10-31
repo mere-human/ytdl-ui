@@ -344,3 +344,27 @@ class TestFormatControls:
 class TestVersionStatusBar:
     def test_status_bar_shows_app_version(self, app_root):
         assert ui.status_var.get() == f"ytdl-ui {ui.core.APP_VERSION}"
+
+
+class TestUrlChangeResetsCheck:
+    def test_changing_url_after_check_returns_to_init(self, app_root):
+        # Regression: stale info/formats stayed (and "download" fetched the
+        # old video) after the URL was edited following a check.
+        ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
+        ui.state.phase = "info"
+        ui.state.checked_url = ui.url_var.get()
+        ui.run_btn_var.set("download")
+        ui.info_var.set("old formats")
+        ui.url_var.set("https://youtu.be/other")
+        assert ui.state.phase == "init"
+        assert ui.run_btn_var.get() == "check"
+        assert ui.info_var.get() == ""
+
+    def test_same_url_keeps_check_results(self, app_root):
+        ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
+        ui.state.phase = "info"
+        ui.state.checked_url = ui.url_var.get()
+        ui.info_var.set("formats")
+        ui.url_var.set(ui.state.checked_url)
+        assert ui.state.phase == "info"
+        assert ui.info_var.get() == "formats"

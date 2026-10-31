@@ -195,4 +195,4 @@ the core flow; pick these up once higher-priority groups are clear.
   - [ ] Give `run_download` (the `-F` check) the same register/stop treatment so
     a long-running check can also be aborted.
 - [ ] Bug: Info is not updated after the URL is changed.
-- [ ] Bug: Pressing 'check' in built exe spaws a console window on Windows.
+- [✓] Bug: Pressing 'check' in built exe spaws a console window on Windows.

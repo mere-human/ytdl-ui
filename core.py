@@ -639,6 +639,12 @@ def partial_file_note(target):
     return f"Partial file left on disk:\n  {which}"
 
 
+# Keep the frozen (windowed) exe from flashing a console for each yt-dlp child.
+SUBPROCESS_FLAGS = (
+    {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
+)
+
+
 def run_download(*args, cookie_browser=None, cookie_file=None):
     """Run yt-dlp and return the CompletedProcess, or None if not found."""
     cmd = [YT_DLP, *JS_RUNTIME_OPTS, *RATE_LIMIT_OPTS,
@@ -647,6 +653,7 @@ def run_download(*args, cookie_browser=None, cookie_file=None):
     try:
         ret = subprocess.run(
             cmd, capture_output=True, encoding="utf-8", errors="replace",
+            **SUBPROCESS_FLAGS,
         )
         log.info(
             "run_download: finished rc=%s (stdout %d chars, stderr %d chars)",
@@ -675,6 +682,7 @@ def run_download_live(*args, on_line=None, cookie_browser=None, cookie_file=None
             stderr=subprocess.PIPE,
             encoding="utf-8",
             errors="replace",
+            **SUBPROCESS_FLAGS,
         )
     except FileNotFoundError:
         log.error("run_download_live: yt-dlp not found at %s", YT_DLP)

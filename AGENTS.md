@@ -39,6 +39,13 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 - Use **`yt-dlp`** as the only backend (not youtube-dl).
 - Invoke via `subprocess` with explicit args; avoid shell=True.
 - Decode stdout/stderr as text (`encoding="utf-8", errors="replace"`).
+- **Format presets**: `core.parse_format_details` turns `-F` rows into
+  `FormatInfo` records (storyboards dropped); `format_selection_args` maps the
+  Type/Quality/Container dropdowns to `-f`, `--merge-output-format`,
+  `--remux-video` or `-x --audio-format`. The check also prints
+  `SUBS:%(subtitles)j` and `AUTOSUBS:%(automatic_captions)j` (all `--print`
+  prefixes are in `core.PRINT_PREFIXES` and skipped by `parse_formats`) so the
+  subtitle dropdown is filled without a second yt-dlp call.
 - Prefer the **venv's** `yt-dlp` and `deno` (resolved next to `sys.executable`),
   falling back to `PATH`; this keeps the toolchain project-local.
 - **Thumbnails**: the format check passes `--print THUMB:%(thumbnail)s` with

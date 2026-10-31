@@ -307,3 +307,35 @@ class TestThumbnailPreview:
         ui.on_download_complete(returncode=-15, stderr="", cancelled=True,
                                   target=None)
         assert _is_gridded(ui.thumb_label) is True
+
+
+class TestFormatControls:
+    OUTPUT = (
+        "ID  EXT   RESOLUTION FPS CH |   FILESIZE   TBR PROTO | VCODEC       MORE INFO\n"
+        "------------------------------------------------------------------------------\n"
+        "140 m4a   audio only      2 |    3.50MiB  130k https | audio only   medium\n"
+        "137 mp4   1920x1080   30    |   45.00MiB 1200k https | avc1.640028  video only\n"
+        'SUBS:{"en": [{"name": "English"}]}\n'
+        "AUTOSUBS:{}\n"
+    )
+
+    def test_populate_and_build_args(self, app_root):
+        ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
+        ui.populate_formats(self.OUTPUT)
+        assert ui.quality_combo.cget("values") == ("Best", "1080p", "Lowest")
+        assert ui.selected_format_args() == ["-f", "bv*+ba/b"]
+        ui.format_var.set("Audio only")
+        ui.on_format_type_changed()
+        ui.container_var.set("MP3")
+        assert ui.selected_format_args() == [
+            "-f", "ba/b", "-x", "--audio-format", "mp3"]
+        ui.subs_var.set(True)
+        assert ui.selected_format_args()[-3:] == ["--write-subs", "--sub-langs", "en"]
+
+    def test_custom_format_disables_presets(self, app_root):
+        ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
+        ui.populate_formats(self.OUTPUT)
+        ui.custom_format_var.set("137")
+        ui.update_custom_format_label()
+        assert _state(ui.quality_combo) == "disabled"
+        assert ui.selected_format_args() == ["-f", "137+ba/137"]

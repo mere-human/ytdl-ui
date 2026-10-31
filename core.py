@@ -4,11 +4,13 @@ import io
 import json
 import logging
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import threading
+from dataclasses import dataclass
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -240,6 +242,21 @@ RATE_LIMIT_OPTS = [
 DEFAULT_FORMAT_LABEL = "best (default)"
 THUMB_PRINT_PREFIX = "THUMB:"
 THUMB_PRINT_TEMPLATE = THUMB_PRINT_PREFIX + "%(thumbnail)s"
+SUBS_PRINT_PREFIX = "SUBS:"
+SUBS_PRINT_TEMPLATE = SUBS_PRINT_PREFIX + "%(subtitles)j"
+AUTO_SUBS_PRINT_PREFIX = "AUTOSUBS:"
+AUTO_SUBS_PRINT_TEMPLATE = AUTO_SUBS_PRINT_PREFIX + "%(automatic_captions)j"
+PRINT_PREFIXES = (THUMB_PRINT_PREFIX, SUBS_PRINT_PREFIX, AUTO_SUBS_PRINT_PREFIX)
+
+TYPE_VIDEO_AUDIO = "Video + Audio"
+TYPE_VIDEO_ONLY = "Video only"
+TYPE_AUDIO_ONLY = "Audio only"
+FORMAT_TYPES = (TYPE_VIDEO_AUDIO, TYPE_VIDEO_ONLY, TYPE_AUDIO_ONLY)
+QUALITY_BEST = "Best"
+QUALITY_LOWEST = "Lowest"
+AUDIO_QUALITIES = (QUALITY_BEST, "Medium", "Low")
+VIDEO_CONTAINERS = ("Auto", "MP4", "MKV")
+AUDIO_CONTAINERS = ("Original", "MP3", "M4A", "Opus")
 THUMB_MAX_WIDTH = 320
 THUMB_MAX_HEIGHT = 180
 THUMB_FETCH_TIMEOUT = 15
@@ -295,7 +312,7 @@ def parse_formats(output):
     seen_separator = False
     for line in output.splitlines():
         stripped = line.strip()
-        if not stripped or stripped.startswith(THUMB_PRINT_PREFIX):
+        if not stripped or stripped.startswith(PRINT_PREFIXES):
             continue
         if not seen_separator:
             if set(stripped) <= set("-\u2500 "):
@@ -313,6 +330,220 @@ def format_id_from_label(label):
     if not label or label == DEFAULT_FORMAT_LABEL:
         return None
     return label.split(None, 1)[0]
+
+
+def strip_print_lines(output):
+    """Drop the machine-readable --print lines from check output."""
+    if not output:
+        return output
+    return "\n".join(
+        line for line in output.splitlines()
+        if not line.strip().startswith(PRINT_PREFIXES)
+    )
+
+
+@dataclass(frozen=True)
+class FormatInfo:
+    """One selectable yt-dlp format parsed from a `-F` table row."""
+
+    id: str
+    ext: str
+    resolution: str
+    height: int | None
+    kind: str  # "video+audio", "video" or "audio"
+    size: int | None  # bytes, when yt-dlp reports one
+    detail: str
+
+
+_SIZE_UNITS = {"KiB": 1024, "MiB": 1024**2, "GiB": 1024**3, "TiB": 1024**4}
+_SIZE_RE = re.compile(r"([\d.]+)\s*(KiB|MiB|GiB|TiB)")
+_RES_RE = re.compile(r"\b\d+x(\d+)\b")
+
+
+def parse_format_details(output):
+    """Parse `-F` output into FormatInfo rows, skipping storyboards."""
+    infos = []
+    for fmt_id, label in parse_formats(output):
+        rest = label[len(fmt_id):].strip()
+        ext = rest.split(None, 1)[0] if rest else ""
+        if ext == "mhtml" or "storyboard" in rest:
+            continue
+        res = _RES_RE.search(rest)
+        height = int(res.group(1)) if res else None
+        if "audio only" in rest:
+            kind, resolution = "audio", "audio only"
+        elif height is None:
+            continue
+        else:
+            kind = "video" if "video only" in rest else "video+audio"
+            resolution = res.group(0)
+        size = None
+        size_match = _SIZE_RE.search(rest)
+        if size_match:
+            size = int(float(size_match.group(1)) * _SIZE_UNITS[size_match.group(2)])
+        parts = rest.split("|", 2)
+        detail = " ".join(parts[2].split()) if len(parts) > 2 else ""
+        infos.append(FormatInfo(fmt_id, ext, resolution, height, kind, size, detail))
+    return infos
+
+
+def sort_formats_for_display(formats):
+    """Order formats video+audio, then video-only, then audio; best first."""
+    order = {"video+audio": 0, "video": 1, "audio": 2}
+    return sorted(
+        formats,
+        key=lambda f: (order[f.kind], -(f.height or 0), -(f.size or 0)),
+    )
+
+
+def available_heights(formats):
+    """Distinct video heights, highest first."""
+    return sorted({f.height for f in formats if f.kind != "audio" and f.height},
+                  reverse=True)
+
+
+def quality_choices(fmt_type, formats):
+    """Quality dropdown values for the chosen download type."""
+    if fmt_type == TYPE_AUDIO_ONLY:
+        return list(AUDIO_QUALITIES)
+    return [QUALITY_BEST] + [f"{h}p" for h in available_heights(formats)] + [QUALITY_LOWEST]
+
+
+def container_choices(fmt_type):
+    """Container dropdown values for the chosen download type."""
+    return list(AUDIO_CONTAINERS if fmt_type == TYPE_AUDIO_ONLY else VIDEO_CONTAINERS)
+
+
+def _quality_height(quality):
+    if quality and quality.endswith("p") and quality[:-1].isdigit():
+        return int(quality[:-1])
+    return None
+
+
+def format_selector(fmt_type, quality):
+    """Build the yt-dlp `-f` expression for a type + quality choice."""
+    height = _quality_height(quality)
+    if fmt_type == TYPE_AUDIO_ONLY:
+        return {
+            "Medium": "ba[abr<=160]/ba/b",
+            "Low": "wa/w",
+        }.get(quality, "ba/b")
+    cap = f"[height<={height}]" if height else ""
+    if quality == QUALITY_LOWEST:
+        return "wv*" if fmt_type == TYPE_VIDEO_ONLY else "wv*+wa/w"
+    if fmt_type == TYPE_VIDEO_ONLY:
+        return f"bv*{cap}"
+    return f"bv*{cap}+ba/b{cap}"
+
+
+def format_selection_args(fmt_type, quality, container):
+    """yt-dlp args (format, container, audio extraction) for the UI choices."""
+    args = ["-f", format_selector(fmt_type, quality)]
+    if fmt_type == TYPE_AUDIO_ONLY:
+        if container in ("MP3", "M4A", "Opus"):
+            args += ["-x", "--audio-format", container.lower()]
+    elif container in ("MP4", "MKV"):
+        flag = "--remux-video" if fmt_type == TYPE_VIDEO_ONLY else "--merge-output-format"
+        args += [flag, container.lower()]
+    return args
+
+
+def custom_format_args(fmt_id, formats):
+    """`-f` args for a raw format pick; video-only picks get audio merged in."""
+    info = next((f for f in formats if f.id == fmt_id), None)
+    if info is not None and info.kind == "video":
+        return ["-f", f"{fmt_id}+ba/{fmt_id}"]
+    return ["-f", fmt_id]
+
+
+def estimate_size(formats, fmt_type, quality):
+    """Rough download size in bytes for the choice, or None when unknown."""
+    sized_audio = sorted(f.size for f in formats if f.kind == "audio" and f.size)
+    audio_size = None
+    if sized_audio:
+        if quality == "Low":
+            audio_size = sized_audio[0]
+        elif quality == "Medium":
+            audio_size = sized_audio[len(sized_audio) // 2]
+        else:
+            audio_size = sized_audio[-1]
+    if fmt_type == TYPE_AUDIO_ONLY:
+        return audio_size
+    videos = [f for f in formats if f.kind != "audio" and f.height]
+    if not videos:
+        return None
+    heights = sorted({f.height for f in videos})
+    cap = _quality_height(quality)
+    if quality == QUALITY_LOWEST:
+        target = heights[0]
+    elif cap:
+        target = max((h for h in heights if h <= cap), default=heights[0])
+    else:
+        target = heights[-1]
+    sizes = [f.size for f in videos if f.height == target and f.size]
+    if not sizes:
+        return None
+    video_size = max(sizes)
+    if fmt_type == TYPE_VIDEO_ONLY:
+        return video_size
+    return video_size + (audio_size or 0)
+
+
+def format_size(num_bytes):
+    """Human-readable size such as '~52.4 MiB'."""
+    if not num_bytes:
+        return "size unknown"
+    value = float(num_bytes)
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if value < 1024 or unit == "GiB":
+            return f"~{value:.1f} {unit}" if unit != "B" else f"~{int(value)} B"
+        value /= 1024
+
+
+def _json_object(payload):
+    try:
+        data = json.loads(payload)
+    except ValueError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def _subtitle_name(entries, code):
+    if isinstance(entries, list):
+        for entry in entries:
+            if isinstance(entry, dict) and entry.get("name"):
+                return entry["name"]
+    return code
+
+
+def parse_subtitle_languages(output):
+    """Return dropdown labels for manual then auto-generated subtitle tracks.
+
+    Labels look like "en - English" or "en - English (auto)"; English leads
+    each group. Use `subtitle_args` to turn a label back into yt-dlp flags.
+    """
+    manual, auto = {}, {}
+    for line in (output or "").splitlines():
+        if line.startswith(SUBS_PRINT_PREFIX):
+            manual = _json_object(line[len(SUBS_PRINT_PREFIX):])
+        elif line.startswith(AUTO_SUBS_PRINT_PREFIX):
+            auto = _json_object(line[len(AUTO_SUBS_PRINT_PREFIX):])
+
+    def labels(tracks, suffix):
+        codes = sorted(tracks, key=lambda c: (not c.startswith("en"), c))
+        return [f"{c} - {_subtitle_name(tracks[c], c)}{suffix}" for c in codes
+                if not c.startswith("live_chat")]
+
+    return labels(manual, "") + labels(auto, " (auto)")
+
+
+def subtitle_args(label):
+    """yt-dlp flags for a subtitle dropdown label (empty when none chosen)."""
+    if not label:
+        return []
+    code = label.split(None, 1)[0]
+    flag = "--write-auto-subs" if label.endswith("(auto)") else "--write-subs"
+    return [flag, "--sub-langs", code]
 
 
 def default_output_dir():

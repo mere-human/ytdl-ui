@@ -8,6 +8,8 @@ import subprocess
 import sys
 import tempfile
 
+import pytest
+
 import core
 
 
@@ -549,3 +551,82 @@ class TestProcessController:
             proc.kill()
             proc.wait()
             controller.clear()
+
+
+class TestFormatPresets:
+    def test_details_skip_storyboards_and_classify(self):
+        infos = {f.id: f for f in core.parse_format_details(SAMPLE_F_OUTPUT)}
+        assert set(infos) == {"139", "140", "137", "18"}
+        assert infos["139"].kind == "audio"
+        assert infos["137"].kind == "video" and infos["137"].height == 1080
+        assert infos["18"].kind == "video+audio"
+        assert infos["140"].size == int(3.5 * 1024**2)
+
+    def test_quality_choices_use_available_heights(self):
+        formats = core.parse_format_details(SAMPLE_F_OUTPUT)
+        assert core.quality_choices(core.TYPE_VIDEO_AUDIO, formats) == [
+            "Best", "1080p", "360p", "Lowest"]
+        assert core.quality_choices(core.TYPE_AUDIO_ONLY, formats) == [
+            "Best", "Medium", "Low"]
+
+    @pytest.mark.parametrize("fmt_type, quality, container, expected", [
+        ("Video + Audio", "Best", "Auto", ["-f", "bv*+ba/b"]),
+        ("Video + Audio", "720p", "MP4", [
+            "-f", "bv*[height<=720]+ba/b[height<=720]",
+            "--merge-output-format", "mp4"]),
+        ("Video + Audio", "Lowest", "MKV", [
+            "-f", "wv*+wa/w", "--merge-output-format", "mkv"]),
+        ("Video only", "1080p", "Auto", ["-f", "bv*[height<=1080]"]),
+        ("Video only", "Best", "MP4", ["-f", "bv*", "--remux-video", "mp4"]),
+        ("Audio only", "Best", "Original", ["-f", "ba/b"]),
+        ("Audio only", "Low", "MP3", [
+            "-f", "wa/w", "-x", "--audio-format", "mp3"]),
+    ])
+    def test_format_selection_args(self, fmt_type, quality, container, expected):
+        assert core.format_selection_args(fmt_type, quality, container) == expected
+
+    def test_custom_video_only_pick_gets_audio(self):
+        formats = core.parse_format_details(SAMPLE_F_OUTPUT)
+        assert core.custom_format_args("137", formats) == ["-f", "137+ba/137"]
+        assert core.custom_format_args("18", formats) == ["-f", "18"]
+
+    def test_estimate_size(self):
+        formats = core.parse_format_details(SAMPLE_F_OUTPUT)
+        mib = 1024**2
+        assert core.estimate_size(formats, "Video + Audio", "Best") == int(45 * mib) + int(3.5 * mib)
+        assert core.estimate_size(formats, "Video only", "360p") == 10 * mib
+        assert core.estimate_size(formats, "Audio only", "Low") == int(1.31 * mib)
+        assert core.estimate_size([], "Audio only", "Best") is None
+
+    def test_format_size(self):
+        assert core.format_size(None) == "size unknown"
+        assert core.format_size(52 * 1024**2) == "~52.0 MiB"
+
+
+class TestSubtitles:
+    OUTPUT = (
+        'SUBS:{"fr": [{"name": "French"}], "en": [{"name": "English"}]}\n'
+        'AUTOSUBS:{"en": [{"name": "English"}], "de": [{"name": "German"}]}\n'
+    )
+
+    def test_languages_manual_first_english_leading(self):
+        assert core.parse_subtitle_languages(self.OUTPUT) == [
+            "en - English", "fr - French",
+            "en - English (auto)", "de - German (auto)",
+        ]
+
+    def test_no_subtitles(self):
+        assert core.parse_subtitle_languages("SUBS:{}\nAUTOSUBS:{}\n") == []
+        assert core.parse_subtitle_languages("SUBS:not json") == []
+
+    def test_subtitle_args(self):
+        assert core.subtitle_args("en - English") == [
+            "--write-subs", "--sub-langs", "en"]
+        assert core.subtitle_args("de - German (auto)") == [
+            "--write-auto-subs", "--sub-langs", "de"]
+        assert core.subtitle_args("") == []
+
+    def test_print_lines_ignored_and_stripped(self):
+        text = SAMPLE_F_OUTPUT + self.OUTPUT
+        assert len(core.parse_formats(text)) == 5
+        assert "SUBS:" not in core.strip_print_lines(text)

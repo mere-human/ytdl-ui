@@ -102,9 +102,17 @@ Optional polish after the core flow works.
 - [✓] **Thumbnail**
   - [✓] Fetch or extract thumbnail when video info is loaded
   - [✓] Display thumbnail in the UI
-- [ ] **Subtitles**
-  - [ ] Optional subtitle download (UI toggle + yt-dlp flags)
-  - [ ] Document subtitle language/options if applicable
+- [~] **Subtitles**
+  - [✓] Optional subtitle download (UI toggle + yt-dlp flags)
+  - [✓] Document subtitle language/options if applicable
+  - [ ] Option to embed subtitles into the video file
+- [~] **Readable format picker** *(replaces the raw `-F` combobox)*
+  - [✓] Type / Quality / Container dropdowns (Video + Audio, Video only, Audio only; Best … Lowest)
+  - [✓] Quality list built from the heights available for the video
+  - [✓] Estimated download size next to the dropdowns
+  - [✓] "Show all formats..." table to pick a raw format id
+  - [ ] Show the generated yt-dlp `-f` string in the UI
+  - [ ] Replace the raw `-F` text in the info panel with a readable summary
 
 ---
 
@@ -171,10 +179,11 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
 Optional refinements and follow-ups to features that already work. Not blocking
 the core flow; pick these up once higher-priority groups are clear.
 
-- [ ] **Handle video-only/audio-only format picks** *(refines P2 Format selection)*
+- [✓] **Handle video-only/audio-only format picks** *(refines P2 Format selection)*
   - A single video-only or audio-only format id downloads a silent or audio-only file.
-  - [ ] Auto-combine (e.g. append `+bestaudio` to a video-only pick), or
-  - [ ] Warn the user before download when the pick is video-only/audio-only.
+  - [✓] Auto-combine (e.g. append `+bestaudio` to a video-only pick), or
+  - [✓] ~~Warn the user before download when the pick is video-only/audio-only.~~
+    Not needed: presets always merge audio and raw video-only picks auto-merge.
 - [ ] **Full process-tree termination for Stop** *(follow-up to P2 Stop/abort)*
   - Today Stop signals only yt-dlp's own process. yt-dlp may spawn children (ffmpeg for muxing, deno for JS challenges) that can briefly outlive
   `terminate()`.

@@ -89,8 +89,21 @@ Deactivate the venv when done with `deactivate`.
    - https://www.youtube.com/watch?v=dQw4w9WgXcQ
    - https://www.youtube.com/watch?v=y6120QOlsfU
 3. Press "Check"
-4. (Optional) Pick a format from the **Format** dropdown that appears — leave
-   it on "best (default)" to let yt-dlp choose the best quality automatically.
+4. (Optional) Choose what to download with the **Format** row that appears:
+   - **Type**: Video + Audio (default), Video only or Audio only.
+   - **Quality**: Best (default), the resolutions this video offers (e.g. 1080p),
+     or Lowest. For audio: Best, Medium or Low.
+   - **Container**: Auto (default), MP4 or MKV for video; Original, MP3, M4A or
+     Opus for audio (MP3/M4A/Opus and MP4/MKV conversion need FFmpeg).
+   - An estimated download size is shown next to the dropdowns
+     ("size unknown" when yt-dlp doesn't report one).
+   - Tick **Subtitles** and pick a language to also download captions
+     (manual tracks first, then auto-generated ones marked "(auto)").
+   - **Show all formats...** opens the raw yt-dlp format table; double-click a
+     row (or **Use selected format**) to download exactly that format.
+     A video-only pick automatically gets the best audio merged in.
+     **Clear** returns to the presets.
+
    A thumbnail preview appears next to the info panel when the check succeeds.
 5. (Optional) Choose where to save via the **Folder** row — it defaults to your
    Downloads folder (or the current directory if that doesn't exist). Click

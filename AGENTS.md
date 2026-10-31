@@ -74,7 +74,8 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
 - Python 3.11+ — required (pinned in `.python-version`); downloads fail on 3.10.
   See the [README](README.md#prerequisites) for the full rationale.
   (You may use features like `str | None` if typing is added.)
-- [yt-dlp](https://github.com/yt-dlp/yt-dlp) installed and on PATH
+- [yt-dlp](https://github.com/yt-dlp/yt-dlp) and Deno, installed into the venv by `requirements.txt`
+  (the app looks next to `sys.executable` first, then on `PATH`)
 
 ### Run locally
 

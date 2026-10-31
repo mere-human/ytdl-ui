@@ -161,6 +161,9 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
     runtimes
   - [✓] Bundle yt-dlp and Deno so recipients do not need to install them
   - [✓] Document replacing the bundled yt-dlp executable manually
+  - [ ] Produce the release zip (`dist/ytdl-ui.zip`, containing the `ytdl-ui/` folder) from the Windows build
+    so it no longer needs a manual `Compress-Archive` step;
+    update the README build section when done
   - [ ] Verify builds on macOS and Linux
   - [ ] Add an in-app yt-dlp updater that checks releases, downloads and verifies
     the executable, replaces it safely, and reports whether a restart is needed

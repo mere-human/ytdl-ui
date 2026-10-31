@@ -1,226 +1,229 @@
 # ytdl-ui
 
-UI for YouTube downloader ([yt-dlp](https://github.com/yt-dlp/yt-dlp)).
+A small desktop GUI for the [yt-dlp](https://github.com/yt-dlp/yt-dlp) video downloader.
+Paste a URL, check what's available, pick a format and download.
 
-## Roadmap
+- [Windows app (prebuilt)](#windows-app-prebuilt)
+- [Usage](#usage)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- Roadmap: **[TASKS.md](TASKS.md)** · Contributor and agent notes: **[AGENTS.md](AGENTS.md)**
 
-See **[TASKS.md](TASKS.md)** for the prioritized task list.
+## Windows app (prebuilt)
 
-## Requirements
+The release is a zip (`ytdl-ui.zip`) containing a `ytdl-ui` folder.
+It bundles the app together with yt-dlp and Deno,
+so you don't need to install Python, yt-dlp or Deno.
 
-### Prebuilt Windows distribution
+1. Extract the whole zip somewhere you can write to,
+   for example `C:\Users\<you>\Apps\ytdl-ui`.
+   Don't run it from inside the zip.
+2. Run `ytdl-ui.exe` from the extracted `ytdl-ui` folder.
+   Keep all files together:
+   the app needs `yt-dlp.exe`, `deno.exe` and the other files next to it,
+   so copying `ytdl-ui.exe` alone won't work
+   (create a shortcut instead).
+3. If Windows SmartScreen warns about an unrecognized app,
+   choose **More info → Run anyway** (the exe is not code-signed).
 
-The Windows distribution includes the app, yt-dlp, and Deno. Users do not need
-to install Python, yt-dlp, or Deno. An internet connection is still required
-to check and download videos.
+Notes:
 
-FFmpeg is not included. It is needed for formats that require merging separate
-audio and video streams; install FFmpeg and add it to `PATH` to use those
-formats.
-
-### Running from source or building
-
-- **Python 3.11 or newer.** yt-dlp installs on 3.10 (its packaging minimum),
-   but **downloads fail on 3.10**: yt-dlp reports Python 3.10 as deprecated and
-   can no longer resolve YouTube signatures on it. Use 3.11+.
-   Check your version with `python3 --version`; if it is older than 3.11,
-   install a newer Python from [python.org](https://www.python.org/downloads/)
-   or your package manager (e.g. `brew install python@3.12`).
-
-No global JavaScript runtime is required when running from source: YouTube
-downloads need one to solve signature challenges, and it is installed into the
-venv for you. The [`deno`](https://pypi.org/project/deno/) package (a
-redistribution of the Deno binary) is listed in `requirements.txt`, and the
-app points yt-dlp at the venv's copy automatically. The Windows build includes
-a standalone Deno executable in its output directory.
-
-## Installation
-
-Use a virtual environment so dependencies stay isolated from your system Python.
-
-Create and activate a venv with a Python 3.11+ interpreter:
-
-```bash
-# Create the venv (use the specific interpreter, e.g. python3.12, if `python3` is older)
-python3.12 -m venv .venv
-
-# Activate it
-source .venv/bin/activate        # macOS / Linux
-# .venv\Scripts\activate         # Windows (PowerShell/cmd)
-```
-
-Confirm the venv uses Python 3.11+:
-
-```bash
-python --version
-```
-
-Make sure `pip` is available in the venv. Most venvs include it, but if
-`python -m pip --version` fails with `No module named pip`, bootstrap it:
-
-```bash
-python -m ensurepip --upgrade
-```
-
-Then install dependencies into the activated venv:
-
-```bash
-pip install -r requirements.txt
-```
-
-This installs [yt-dlp](https://github.com/yt-dlp/yt-dlp) inside the venv,
-plus [Pillow](https://pypi.org/project/Pillow/) so JPEG/WebP thumbnails can
-be shown in the UI (Tk's built-in image loader does not decode those formats).
-Alternatively, install yt-dlp via your system package manager — see the
-[yt-dlp installation guide](https://github.com/yt-dlp/yt-dlp#installation).
-
-Verify yt-dlp is available:
-
-```bash
-yt-dlp --version
-```
-
-Deactivate the venv when done with `deactivate`.
+- An internet connection is required to check and download videos.
+- **FFmpeg is not included.**
+  It's needed to merge separate video and audio streams
+  and to convert to MP3/M4A/Opus or MP4/MKV.
+  Install [FFmpeg](https://ffmpeg.org/download.html) and add it to `PATH`
+  to use those formats.
+- **Updating yt-dlp.**
+  When YouTube changes, an old yt-dlp may stop working.
+  Close the app and replace `yt-dlp.exe` in the app folder
+  with the latest `yt-dlp.exe` from the
+  [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases),
+  keeping the same filename.
+  A newer ytdl-ui release also ships a newer yt-dlp.
+  The status bar shows the yt-dlp version in use.
+- **Uninstalling.** Delete the app folder.
+  Settings are stored in `%LOCALAPPDATA%\ytdl-ui\settings.json`
+  and logs in `%TEMP%\ytdl-ui\`; delete those too if you like.
 
 ## Usage
 
-1. Start the app: `python main.py`
-2. Paste the video URL. Example
-   - https://www.youtube.com/watch?v=dQw4w9WgXcQ
-   - https://www.youtube.com/watch?v=y6120QOlsfU
-3. Press "Check"
-4. (Optional) Choose what to download with the **Format** row that appears:
+1. Start the app
+   (`ytdl-ui.exe`, or `python main.py` when [running from source](#running-from-source)).
+2. Paste a video URL, for example
+   `https://www.youtube.com/watch?v=dQw4w9WgXcQ`.
+3. Press **check**.
+   Video info and a thumbnail preview appear when the check succeeds,
+   and the button changes to **download**.
+4. (Optional) Choose what to download in the **Format** row:
    - **Type**: Video + Audio (default), Video only or Audio only.
-   - **Quality**: Best (default), the resolutions this video offers (e.g. 1080p),
-     or Lowest. For audio: Best, Medium or Low.
-   - **Container**: Auto (default), MP4 or MKV for video; Original, MP3, M4A or
-     Opus for audio (MP3/M4A/Opus and MP4/MKV conversion need FFmpeg).
-   - An estimated download size is shown next to the dropdowns
+   - **Quality**: Best (default), the resolutions this video offers (e.g. 1080p) or Lowest;
+     for audio: Best, Medium or Low.
+   - **Container**: Auto (default), MP4 or MKV for video;
+     Original, MP3, M4A or Opus for audio.
+     Conversions need FFmpeg.
+   - The estimated download size is shown next to the dropdowns
      ("size unknown" when yt-dlp doesn't report one).
    - Tick **Subtitles** and pick a language to also download captions
      (manual tracks first, then auto-generated ones marked "(auto)").
-   - **Show all formats...** opens the raw yt-dlp format table; double-click a
-     row (or **Use selected format**) to download exactly that format.
-     A video-only pick automatically gets the best audio merged in.
+   - **Show all formats...** opens the raw yt-dlp format table.
+     Double-click a row (or press **Use selected format**) to download exactly that format;
+     a video-only pick automatically gets the best audio merged in.
      **Clear** returns to the presets.
+5. (Optional) Choose where to save in the **Folder** row.
+   It defaults to your Downloads folder
+   (or the current directory if that doesn't exist);
+   **Browse...** picks another folder.
+6. Press **download**, then find the file in the selected folder.
 
-   A thumbnail preview appears next to the info panel when the check succeeds.
-5. (Optional) Choose where to save via the **Folder** row — it defaults to your
-   Downloads folder (or the current directory if that doesn't exist). Click
-   **Browse...** to pick another folder.
-6. Press "Download"
-7. Find the file in the selected folder.
+To cancel, press **Stop** (next to the download button while a download runs).
+yt-dlp keeps the partial `.part` file and the info panel shows its path.
+The app returns to the format list,
+so you can adjust the format and retry without checking again.
 
-To use your YouTube session, enable **Use browser cookies** and choose a
-browser. On Windows, Firefox is the recommended browser-cookie option. The app
-remembers the opt-in and selected source between sessions. For a cookie file,
-it stores only the file path, not the cookie contents.
+Editing the URL after a check clears the results
+and turns the button back into **check** for the new URL.
 
-Chrome or Edge may fail to decrypt browser cookies on Windows. To use an
-exported cookie file:
+The status bar at the bottom shows the app version (CalVer, `YYYY.MM.DD`)
+and the yt-dlp version in use.
 
-1. Install a 'Get cookies.txt' extension such as
-   https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc?pli=1
-   in order to download the file.
-2. Sign in to YouTube in Chrome or Edge, then use the extension to export the
-   site's cookies to a text file.
-3. Enable **Use browser cookies**, choose **Browse...** in the Browser dropdown,
-   and select the downloaded file. The app uses it for both checking and
-   downloading.
+### Browser cookies
 
-To cancel a download in progress, press **Stop** (it appears next to the
-Download button while downloading). yt-dlp keeps the partially downloaded
-`.part` file on disk and the info panel shows its path; the app returns to the
-format list so you can adjust the format and retry without checking again.
+Some videos need your YouTube session
+(age-restricted or members-only videos, or when YouTube asks you to sign in).
+Enable **Use browser cookies** and choose a browser.
+On Windows, Firefox works best.
+The app remembers this choice between sessions.
+
+Chrome and Edge cookies often can't be decrypted on Windows
+(see [yt-dlp#10927](https://github.com/yt-dlp/yt-dlp/issues/10927)).
+Use an exported cookie file instead:
+
+1. Install a "Get cookies.txt" browser extension, such as
+   [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc).
+2. Sign in to YouTube in Chrome or Edge,
+   then use the extension to export the site's cookies to a text file.
+3. Enable **Use browser cookies**, choose **Browse...** in the Browser dropdown
+   and select the exported file.
+   It's used for both checking and downloading.
+
+Only the cookie file's path is saved, never its contents.
+Keep the file private: it gives access to your account.
+
+## Troubleshooting
 
 ### Rate limiting (HTTP 429)
 
-YouTube may rate-limit requests with `HTTP Error 429: Too Many Requests`.
-The app automatically retries with backoff and sleeps between requests to
-reduce this. If you still get rate limited, the info panel shows guidance:
+YouTube may answer with `HTTP Error 429: Too Many Requests`.
+The app already retries with backoff and pauses between requests.
+If it still happens:
 
 - Wait a few minutes before retrying.
-- If YouTube asks you to sign in or solve a CAPTCHA, enable **Use browser
-   cookies**. On Windows, Firefox is recommended. For Chrome or Edge, follow
-   the cookie-file export steps above and select the file with **Browse...**.
-- Update yt-dlp. For a prebuilt bundle, rebuild it or replace the bundled
-   `yt-dlp.exe`; updating a separate Python installation does not update it.
+- If YouTube asks you to sign in or solve a CAPTCHA,
+  enable [browser cookies](#browser-cookies).
+- Update yt-dlp
+  (prebuilt app: see [Updating yt-dlp](#windows-app-prebuilt);
+  from source: `pip install -U yt-dlp` in the venv).
 - Avoid checking many URLs in quick succession.
 
-For background on Chrome cookie decryption failures and workarounds, see
-https://github.com/yt-dlp/yt-dlp/issues/10927.
+### Logs
+
+Each run writes a log to `ytdl-ui-<pid>.log` in the system temp folder
+(`%TEMP%\ytdl-ui\` on Windows).
+It's useful to attach when reporting a problem.
 
 ## Development
 
-Set up the venv as described in [Installation](#installation) (Python 3.11+),
-then, with it activated:
+### Prerequisites
+
+- **Python 3.11 or newer** (see `.python-version`).
+  yt-dlp installs on 3.10, but downloads fail there:
+  yt-dlp treats 3.10 as deprecated and can no longer solve YouTube signatures on it.
+  Check with `python --version`;
+  get a newer Python from [python.org](https://www.python.org/downloads/)
+  or your package manager (e.g. `brew install python@3.12`).
+- No global JavaScript runtime is needed.
+  YouTube signature solving needs one,
+  so the [`deno`](https://pypi.org/project/deno/) package in `requirements.txt`
+  installs Deno into the venv and the app points yt-dlp at it.
+- FFmpeg on `PATH` for merging and conversions (optional).
+
+### Running from source
+
+Use a virtual environment so dependencies stay out of your system Python:
 
 ```bash
-pip install -r requirements.txt
+python3.12 -m venv .venv          # any 3.11+ interpreter
+source .venv/bin/activate         # macOS / Linux
+# .venv\Scripts\activate          # Windows (PowerShell / cmd)
+
+python --version                  # confirm 3.11+
+pip install -r requirements.txt   # yt-dlp, deno, Pillow
 python main.py
 ```
 
-Agent and contributor notes: **[AGENTS.md](AGENTS.md)**.
+If `pip` is missing in the venv (`No module named pip`),
+run `python -m ensurepip --upgrade` first.
 
-The window's status bar shows the app version (CalVer, `YYYY.MM.DD`) and the yt-dlp version in use.
+`requirements.txt` installs yt-dlp, Deno,
+and [Pillow](https://pypi.org/project/Pillow/) for JPEG/WebP thumbnails
+(Tk's built-in image loader can't decode those).
+The app looks for `yt-dlp` and `deno` next to the running Python first
+(the venv), then on `PATH`,
+so a system-wide yt-dlp also works if it isn't in the venv.
 
 ### Tests
 
-Unit tests use [pytest](https://pytest.org). With the venv **activated** (see
-[Installation](#installation)), install the dev dependencies and run the suite
-from the repo root:
+Tests use [pytest](https://pytest.org).
+From the repo root, with the venv activated:
 
 ```bash
-pip install -r requirements-dev.txt   # pulls in pytest (and runtime deps)
+pip install -r requirements-dev.txt   # pytest + runtime deps
 pytest
 ```
 
-### Building the Windows distribution (PyInstaller)
+Without activating, call the venv's interpreter explicitly
+(`.venv/bin/python -m pytest` on macOS/Linux,
+`.venv\Scripts\python -m pytest` on Windows).
+A bare `python3 -m pytest` outside the venv may use a different Python
+that lacks the dependencies.
 
-From the project root, with dependencies installed in the project venv, run:
+- `tests/test_formats.py` covers the Tk-free logic in `core.py`.
+- `tests/test_ui.py` runs headless Tk smoke tests
+  (skipped automatically when Tk has no display).
 
-```bash
-pyinstaller\build_windows.bat
-```
+### Code layout
 
-The script uses `.venv` when available, installs PyInstaller into that
-environment, freezes the installed yt-dlp package as a standalone executable,
-and builds a Windows directory bundle containing yt-dlp and Deno. To rebuild
-from a clean PyInstaller cache, pass `--clean`:
+- `main.py` — thin launcher for `ui.py`.
+- `ui.py` — Tk widgets and callbacks; the window is built by `ui.build_ui()`.
+- `core.py` — Tk-free logic: tool resolution, yt-dlp arguments, output parsing,
+  thumbnails, cookie settings, logging, process control.
+  `core.APP_VERSION` is the single source of the app version.
+- `pyinstaller/` — Windows build script and spec.
 
-```bash
-pyinstaller\build_windows.bat --clean
-```
+Importing `main` or `ui` doesn't create a window.
+See [AGENTS.md](AGENTS.md) for conventions and workflow.
 
-The complete distributable is `dist/ytdl-ui/`. Distribute the whole directory
-(for example, as a zip); users run `ytdl-ui.exe` inside it. Do not distribute
-the app executable by itself.
+### Building the Windows release (PyInstaller)
 
-Users can update yt-dlp independently before an in-app updater is available:
-close the app and replace `dist/ytdl-ui/yt-dlp.exe` with the current official
-Windows standalone executable from the
-[yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases), keeping the
-filename unchanged. A future app build will replace this manual update with
-the version bundled in that build.
-
-The current build helper targets Windows only. Do not commit `dist/` or
-`build/` artifacts produced by PyInstaller.
-
-
-Run tests on the same Python 3.11+ interpreter the app uses — the venv's. When
-the venv is activated, `python`, `pip`, and `pytest` all resolve to it; to run
-without activating, call the venv binaries explicitly:
+On Windows, from the repo root, with dependencies installed in `.venv`:
 
 ```bash
-.venv/bin/python -m pytest            # macOS / Linux
-# .venv\Scripts\python -m pytest      # Windows
+pyinstaller\build_windows.bat           # add --clean to drop the PyInstaller cache
 ```
 
-Avoid a bare `python3 -m pytest` unless the venv is activated — outside the
-venv it may run a different system Python and won't see the installed deps.
+The script uses `.venv` when present, installs PyInstaller into it,
+freezes the installed yt-dlp as a standalone `yt-dlp.exe`,
+and builds the directory bundle `dist/ytdl-ui/`
+with `ytdl-ui.exe`, `yt-dlp.exe` and `deno.exe`.
+The exe's file properties carry `APP_VERSION`.
 
-`main.py` is a thin launcher for `ui.py`; importing either module does not
-create a window. Tk construction lives in `ui.build_ui()`, while reusable
-Tk-free behavior lives in `core.py`. Tests live in `tests/`:
-`test_formats.py` covers core logic and `test_ui.py` runs headless Tk smoke
-tests for widget enable/disable behavior (auto-skipped if Tk has no display).
+The whole `dist/ytdl-ui/` folder is the deliverable; never ship `ytdl-ui.exe` alone.
+The build doesn't create the zip; make it yourself, for example:
+
+```powershell
+Compress-Archive -Path dist\ytdl-ui -DestinationPath dist\ytdl-ui.zip -Force
+```
+
+The build helper is Windows-only.
+`build/` and `dist/` are git-ignored; don't commit them.

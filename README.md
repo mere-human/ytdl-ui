@@ -162,6 +162,8 @@ python main.py
 
 Agent and contributor notes: **[AGENTS.md](AGENTS.md)**.
 
+The window's status bar shows the app version (CalVer, `YYYY.MM.DD`) and the yt-dlp version in use.
+
 ### Tests
 
 Unit tests use [pytest](https://pytest.org). With the venv **activated** (see

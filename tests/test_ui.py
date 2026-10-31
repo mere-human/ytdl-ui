@@ -339,3 +339,8 @@ class TestFormatControls:
         ui.update_custom_format_label()
         assert _state(ui.quality_combo) == "disabled"
         assert ui.selected_format_args() == ["-f", "137+ba/137"]
+
+
+class TestVersionStatusBar:
+    def test_status_bar_shows_app_version(self, app_root):
+        assert ui.status_var.get() == f"ytdl-ui {ui.core.APP_VERSION}"

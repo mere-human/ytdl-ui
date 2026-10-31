@@ -4,6 +4,7 @@ import io
 import json
 import logging
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -630,3 +631,28 @@ class TestSubtitles:
         text = SAMPLE_F_OUTPUT + self.OUTPUT
         assert len(core.parse_formats(text)) == 5
         assert "SUBS:" not in core.strip_print_lines(text)
+
+
+class TestVersion:
+    def test_app_version_is_calver(self):
+        assert re.fullmatch(r"\d{4}\.\d{1,2}\.\d{1,2}(\.\d+)?", core.APP_VERSION)
+
+    def test_status_text_with_and_without_yt_dlp(self):
+        assert core.version_status_text() == f"ytdl-ui {core.APP_VERSION}"
+        assert core.version_status_text("2026.10.15") == (
+            f"ytdl-ui {core.APP_VERSION} · yt-dlp 2026.10.15"
+        )
+
+    def test_get_yt_dlp_version_reads_stdout(self, monkeypatch):
+        monkeypatch.setattr(
+            core.subprocess, "run",
+            lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, "2026.10.15\n", ""),
+        )
+        assert core.get_yt_dlp_version() == "2026.10.15"
+
+    def test_get_yt_dlp_version_none_when_missing(self, monkeypatch):
+        def missing(cmd, **kw):
+            raise FileNotFoundError
+
+        monkeypatch.setattr(core.subprocess, "run", missing)
+        assert core.get_yt_dlp_version() is None

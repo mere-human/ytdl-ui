@@ -149,6 +149,13 @@ project logic.
 - **Commits** — only when the user asks; follow repo message style (short imperative: "Add state", "Integrate youtube-dl").
 - For Markdown files, use Semantic Line Breaks. Avoid wrapping the line mid sentence. When writing text with a compatible markup language, add a line break after each substantial unit of thought.
 
+## Versioning
+
+The app uses CalVer: `YYYY.MM.DD`, with a `.N` suffix for another release on the same day.
+`core.APP_VERSION` is the single source of truth.
+To release, bump it, commit, and tag `vYYYY.MM.DD`.
+The UI status bar shows it next to the yt-dlp version (from `yt-dlp --version`).
+
 ## Known issues
 
 Outstanding fixes are listed as open items in **[TASKS.md](TASKS.md)** (especially P1–P3). When an item is completed, mark it there and remove or update any stale notes here.

@@ -2,7 +2,7 @@
 # https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 from dataclasses import dataclass
-from tkinter import E, END, N, S, VERTICAL, W, BooleanVar, StringVar, Text, Tk, Toplevel
+from tkinter import E, END, HORIZONTAL, N, S, VERTICAL, W, BooleanVar, StringVar, Text, Tk, Toplevel
 from tkinter import ttk
 from tkinter import filedialog
 import queue
@@ -519,6 +519,16 @@ def run_download_in_thread(
     thread.start()
 
 
+def refresh_version_status():
+    """Look up the yt-dlp version off the main thread and show it in the footer."""
+    def worker():
+        version = core.get_yt_dlp_version()
+        text = core.version_status_text(version)
+        _post(lambda: status_var.set(text))
+
+    threading.Thread(target=worker, daemon=True, name="version").start()
+
+
 def run_btn_press(*args):
     log.info("run_btn_press: state=%s url=%r", state.phase, url_var.get())
     # Guard the action itself: the <Return> key binding fires even when the
@@ -583,6 +593,7 @@ def build_ui(root):
     global cookie_browser_check, cookie_browser_combo, cookie_file_label
     global cookie_file_var, cookie_source_var, cookie_previous_browser_var
     global content_frame, thumb_label, info_frame, info_var, info_text, info_scroll
+    global status_var, status_label
 
     root.title("Video Downloader")
 
@@ -599,6 +610,8 @@ def build_ui(root):
     # | cookie options                               |
     # |-------------------------------------------------|
     # | content_frame: thumb_label | info_frame         |
+    # |-------------------------------------------------|
+    # | separator, then status_label (app + yt-dlp version), on root |
     # |-------------------------------------------------|
 
     frame = ttk.Frame(root, padding="3 3 12 12")
@@ -711,7 +724,16 @@ def build_ui(root):
     info_text.configure(yscrollcommand=info_scroll.set)
     info_var.trace_add("write", _sync_info_text)
 
+    status_var = StringVar(value=core.version_status_text())
+    # Small, gray text so the footer stays unobtrusive.
+    status_label = ttk.Label(
+        root, textvariable=status_var, anchor=W, padding="8 2",
+        font="TkSmallCaptionFont", foreground="gray50",
+    )
+
     frame.grid(column=0, row=0, sticky=(N, W, E, S))
+    ttk.Separator(root, orient=HORIZONTAL).grid(column=0, row=1, sticky=(W, E))
+    status_label.grid(column=0, row=2, sticky=(W, E))
     url_label.grid(column=1, row=1, sticky=E)
     url_entry.grid(column=2, row=1, sticky=(W, E))
     run_btn.grid(column=3, row=1, sticky=W)
@@ -815,6 +837,7 @@ def main():
     root.after(0, focus_window)
     # Start draining the thread->UI queue on the main thread.
     root.after(50, _pump_ui_queue)
+    refresh_version_status()
 
     root.mainloop()
 

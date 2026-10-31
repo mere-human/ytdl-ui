@@ -170,7 +170,11 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [ ] Lower the logging level after beta builds
   - [ ] Add a setting to toggle logging
 
-- [ ] App version
+- [~] **App version**
+  - [✓] CalVer (`YYYY.MM.DD`, `.N` for same-day releases) with `core.APP_VERSION` as the single source of truth
+  - [✓] Status bar showing the app version and the yt-dlp version
+  - [ ] Help > About dialog (app, yt-dlp, Deno, Python versions; Copy button) on a new menu bar
+  - [ ] Write the version into the PyInstaller version-info resource
 
 ---
 

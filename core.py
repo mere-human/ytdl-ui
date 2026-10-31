@@ -15,6 +15,10 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
+# CalVer (YYYY.MM.DD, plus .N for a further release on the same day).
+# Single source of truth: bump this when tagging a release (tag: vYYYY.MM.DD).
+APP_VERSION = "2026.10.31"
+
 log = logging.getLogger("ytdl-ui")
 log.addHandler(logging.NullHandler())
 log.setLevel(logging.INFO)
@@ -130,6 +134,7 @@ def configure_logging(log_dir=None):
         stream_handler = logging.StreamHandler(sys.stderr)
         stream_handler.setFormatter(formatter)
         log.addHandler(stream_handler)
+    log.info("ytdl-ui %s", APP_VERSION)
     log.info("Python %s", sys.version.split()[0])
     log.info("yt-dlp resolved to: %s", YT_DLP)
     log.info("JS runtime opts: %s", JS_RUNTIME_OPTS or "(none — yt-dlp will auto-detect)")
@@ -643,6 +648,28 @@ def partial_file_note(target):
 SUBPROCESS_FLAGS = (
     {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
 )
+
+
+def get_yt_dlp_version(timeout=15):
+    """Return the yt-dlp version string, or None if it cannot be determined."""
+    try:
+        ret = subprocess.run(
+            [YT_DLP, "--version"], capture_output=True, encoding="utf-8",
+            errors="replace", timeout=timeout, **SUBPROCESS_FLAGS,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        log.warning("get_yt_dlp_version: %s", exc)
+        return None
+    version = (ret.stdout or "").strip()
+    return version if ret.returncode == 0 and version else None
+
+
+def version_status_text(yt_dlp_version=None):
+    """Footer text showing the app version and, once known, the yt-dlp version."""
+    text = f"ytdl-ui {APP_VERSION}"
+    if yt_dlp_version:
+        text += f" · yt-dlp {yt_dlp_version}"
+    return text
 
 
 def run_download(*args, cookie_browser=None, cookie_file=None):

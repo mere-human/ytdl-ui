@@ -637,6 +637,10 @@ class TestVersion:
     def test_app_version_is_calver(self):
         assert re.fullmatch(r"\d{4}\.\d{1,2}\.\d{1,2}(\.\d+)?", core.APP_VERSION)
 
+    def test_version_tuple_pads_to_four_ints(self):
+        assert core.version_tuple("2026.10.31") == (2026, 10, 31, 0)
+        assert core.version_tuple("2026.10.31.2") == (2026, 10, 31, 2)
+
     def test_status_text_with_and_without_yt_dlp(self):
         assert core.version_status_text() == f"ytdl-ui {core.APP_VERSION}"
         assert core.version_status_text("2026.10.15") == (

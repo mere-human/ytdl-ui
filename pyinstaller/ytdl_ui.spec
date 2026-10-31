@@ -23,6 +23,34 @@ binaries = [
     (str(deno_bin), '.'),
 ]
 
+# Windows file metadata (Explorer > Properties > Details).
+sys.path.insert(0, str(project_root))
+from core import APP_VERSION, version_tuple
+from PyInstaller.utils.win32.versioninfo import (
+    FixedFileInfo, StringFileInfo, StringStruct, StringTable, VarFileInfo,
+    VarStruct, VSVersionInfo,
+)
+
+version_info = VSVersionInfo(
+    ffi=FixedFileInfo(
+        filevers=version_tuple(APP_VERSION),
+        prodvers=version_tuple(APP_VERSION),
+    ),
+    kids=[
+        StringFileInfo([
+            StringTable('040904B0', [
+                StringStruct('ProductName', 'ytdl-ui'),
+                StringStruct('FileDescription', 'ytdl-ui'),
+                StringStruct('FileVersion', APP_VERSION),
+                StringStruct('ProductVersion', APP_VERSION),
+                StringStruct('InternalName', 'ytdl-ui'),
+                StringStruct('OriginalFilename', 'ytdl-ui.exe'),
+            ]),
+        ]),
+        VarFileInfo([VarStruct('Translation', [0x0409, 0x04B0])]),
+    ],
+)
+
 block_cipher = None
 
 a = Analysis(
@@ -53,6 +81,7 @@ exe = EXE(
     upx=True,
     console=False,
     contents_directory='.',
+    version=version_info,
 )
 
 coll = COLLECT(

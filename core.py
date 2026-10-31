@@ -664,6 +664,12 @@ def get_yt_dlp_version(timeout=15):
     return version if ret.returncode == 0 and version else None
 
 
+def version_tuple(version=APP_VERSION):
+    """Return the version as the 4-int tuple Windows file metadata requires."""
+    parts = [int(part) for part in version.split(".")]
+    return tuple((parts + [0] * 4)[:4])
+
+
 def version_status_text(yt_dlp_version=None):
     """Footer text showing the app version and, once known, the yt-dlp version."""
     text = f"ytdl-ui {APP_VERSION}"

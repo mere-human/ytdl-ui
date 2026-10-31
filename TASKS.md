@@ -174,7 +174,7 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [✓] CalVer (`YYYY.MM.DD`, `.N` for same-day releases) with `core.APP_VERSION` as the single source of truth
   - [✓] Status bar showing the app version and the yt-dlp version
   - [ ] Help > About dialog (app, yt-dlp, Deno, Python versions; Copy button) on a new menu bar
-  - [ ] Write the version into the PyInstaller version-info resource
+  - [✓] Write the version into the PyInstaller version-info resource
 
 ---
 

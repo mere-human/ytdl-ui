@@ -34,6 +34,7 @@ MANIFEST
 !pyinstaller/
 !pyinstaller/*.py
 !pyinstaller/*.bat
+!pyinstaller/*.sh
 !pyinstaller/ytdl_ui.spec
 
 # Installer logs

@@ -205,7 +205,7 @@ that lacks the dependencies.
 - `core.py` — Tk-free logic: tool resolution, yt-dlp arguments, output parsing,
   thumbnails, cookie settings, logging, process control.
   `core.APP_VERSION` is the single source of the app version.
-- `pyinstaller/` — Windows build script and spec.
+- `pyinstaller/` — Windows and macOS build scripts and the shared spec.
 
 Importing `main` or `ui` doesn't create a window.
 See [AGENTS.md](AGENTS.md) for conventions and workflow.
@@ -231,5 +231,22 @@ The build doesn't create the zip; make it yourself, for example:
 Compress-Archive -Path dist\ytdl-ui -DestinationPath dist\ytdl-ui.zip -Force
 ```
 
-The build helper is Windows-only.
+### Building for macOS (PyInstaller)
+
+On a Mac, from the repo root, with dependencies installed in `.venv`:
+
+```bash
+pyinstaller/build_mac.sh                # add --clean to drop the PyInstaller cache
+```
+
+It builds `dist/ytdl-ui.app` (double-click to start, no Terminal window),
+with `deno` and a one-dir `yt-dlp` (in `yt-dlp-runtime/`) inside the bundle.
+(A one-file `yt-dlp` takes ~30 s per call on macOS, so it isn't used here.)
+Zip it with `ditto -c -k --keepParent dist/ytdl-ui.app dist/ytdl-ui-mac.zip`.
+The build is unsigned and not notarized, so Gatekeeper may block it on other Macs;
+clear the quarantine flag with `xattr -dr com.apple.quarantine ytdl-ui.app`.
+Build on the architecture you target (arm64 or x86_64).
+Unlike the Windows build, it also leaves a plain `dist/ytdl-ui/` folder, which opens Terminal when double-clicked; ship the `.app`.
+
+The build helper supports Windows and macOS only.
 `build/` and `dist/` are git-ignored; don't commit them.

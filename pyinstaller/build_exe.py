@@ -16,6 +16,7 @@ SPEC = SPEC_DIR / "ytdl_ui.spec"
 MAIN = REPO_ROOT / "main.py"
 BUILD_DIR = REPO_ROOT / "build"
 YTDLP_DIST_DIR = BUILD_DIR / "yt-dlp-runtime"
+EXE_SUFFIX = ".exe" if sys.platform == "win32" else ""
 
 
 def preferred_python() -> Path:
@@ -33,8 +34,8 @@ def preferred_python() -> Path:
 
 def ensure_tools(python: Path):
     """Ensure the build dependencies are present."""
-    if sys.platform != "win32":
-        raise RuntimeError("This build helper currently targets Windows only.")
+    if sys.platform not in ("win32", "darwin"):
+        raise RuntimeError("This build helper targets Windows and macOS only.")
     if not MAIN.exists():
         raise FileNotFoundError(f"Project entry point not found: {MAIN}")
     if not SPEC.exists():
@@ -68,8 +69,8 @@ def ensure_tools(python: Path):
     if not result.stdout.strip() or not Path(result.stdout.strip()).is_file():
         raise RuntimeError("Could not locate yt-dlp's Python module entry point.")
 
-    deno_candidates = [Path(python).resolve().parent / "deno.exe"]
-    deno_from_path = shutil.which("deno.exe") or shutil.which("deno")
+    deno_candidates = [Path(python).resolve().parent / f"deno{EXE_SUFFIX}"]
+    deno_from_path = shutil.which("deno")
     if deno_from_path:
         deno_candidates.append(Path(deno_from_path))
     if not any(candidate.is_file() for candidate in deno_candidates):
@@ -80,7 +81,7 @@ def ensure_tools(python: Path):
 
 
 def build_yt_dlp(python: Path, clean: bool):
-    """Freeze yt-dlp into a standalone Windows executable for the app bundle."""
+    """Freeze yt-dlp into a standalone executable for the app bundle."""
     result = subprocess.run(
         [
             str(python), "-c",
@@ -96,7 +97,10 @@ def build_yt_dlp(python: Path, clean: bool):
     if clean:
         cmd.append("--clean")
     cmd.extend([
-        "--onefile", "--noconfirm", "--name", "yt-dlp",
+        # A onefile exe re-extracts (and on macOS re-scans) itself on every
+        # run, taking ~30 s there; macOS therefore ships a one-dir build.
+        "--onedir" if sys.platform == "darwin" else "--onefile",
+        "--noconfirm", "--name", "yt-dlp",
         "--distpath", str(YTDLP_DIST_DIR),
         "--workpath", str(BUILD_DIR / "yt-dlp-work"),
         "--specpath", str(BUILD_DIR / "yt-dlp-spec"),
@@ -107,7 +111,7 @@ def build_yt_dlp(python: Path, clean: bool):
 
 
 def build_command(python: Path, clean: bool) -> list[str]:
-    """Create the PyInstaller command for the Windows directory bundle."""
+    """Create the PyInstaller command for the directory bundle."""
     cmd = [str(python), "-m", "PyInstaller"]
     if clean:
         cmd.append("--clean")
@@ -121,7 +125,7 @@ def build_command(python: Path, clean: bool) -> list[str]:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Build the Windows ytdl-ui directory bundle.")
+    parser = argparse.ArgumentParser(description="Build the ytdl-ui directory bundle (Windows or macOS).")
     parser.add_argument("--clean", action="store_true", help="Remove cached PyInstaller build data")
     args = parser.parse_args()
 

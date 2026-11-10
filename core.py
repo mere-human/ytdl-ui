@@ -182,16 +182,22 @@ process_controller = ProcessController()
 
 
 def _venv_bin_dir():
+    # Frozen builds keep bundled tools in PyInstaller's data dir; in a macOS
+    # .app that is not the directory of the executable.
+    if getattr(sys, "frozen", False) and getattr(sys, "_MEIPASS", None):
+        return sys._MEIPASS
     return os.path.dirname(os.path.abspath(sys.executable))
 
 
 def _find_executable(name):
     """Prefer executables installed beside the active Python interpreter."""
     bin_dir = _venv_bin_dir()
-    for candidate in (name, name + ".exe"):
-        local = os.path.join(bin_dir, candidate)
-        if os.path.isfile(local) and os.access(local, os.X_OK):
-            return local
+    # macOS builds ship yt-dlp as a one-dir app in a subfolder (see build_exe.py).
+    for folder in (bin_dir, os.path.join(bin_dir, "yt-dlp-runtime")):
+        for candidate in (name, name + ".exe"):
+            local = os.path.join(folder, candidate)
+            if os.path.isfile(local) and os.access(local, os.X_OK):
+                return local
     return shutil.which(name)
 
 
@@ -650,7 +656,7 @@ SUBPROCESS_FLAGS = (
 )
 
 
-def get_yt_dlp_version(timeout=15):
+def get_yt_dlp_version(timeout=90):
     """Return the yt-dlp version string, or None if it cannot be determined."""
     try:
         ret = subprocess.run(

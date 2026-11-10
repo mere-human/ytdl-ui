@@ -164,7 +164,10 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
   - [ ] Produce the release zip (`dist/ytdl-ui.zip`, containing the `ytdl-ui/` folder) from the Windows build
     so it no longer needs a manual `Compress-Archive` step;
     update the README build section when done
-  - [ ] Verify builds on macOS and Linux
+  - [~] macOS directory build (`pyinstaller/build_mac.sh`, shared spec)
+    - [✓] Produce `ytdl-ui.app` (tools resolve inside the bundle)
+    - [ ] Code signing / notarization
+  - [ ] Verify the build on Linux
   - [ ] Add an in-app yt-dlp updater that checks releases, downloads and verifies
     the executable, replaces it safely, and reports whether a restart is needed
   - [✓] Do not commit `dist/` or `build/` artifacts

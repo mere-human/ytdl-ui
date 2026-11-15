@@ -168,9 +168,29 @@ Cross-platform release and test coverage (per [Agent guide](AGENTS.md)).
     - [✓] Produce `ytdl-ui.app` (tools resolve inside the bundle)
     - [ ] Code signing / notarization
   - [ ] Verify the build on Linux
-  - [ ] Add an in-app yt-dlp updater that checks releases, downloads and verifies
+  - [~] Add an in-app yt-dlp updater that checks releases, downloads and verifies
     the executable, replaces it safely, and reports whether a restart is needed
+    - [✓] Help > Update yt-dlp... checks the latest stable release,
+      verifies `SHA2-256SUMS`, smoke-tests `--version`, swaps with rollback,
+      and reports whether a restart is needed (`updater.py`)
+    - [✓] Help menu checkbox: per-user folder (default) or replace the bundled copy
+    - [✓] Quiet startup check hints at a newer yt-dlp in the status bar
+    - [✓] Drop an older per-user copy after an app upgrade ships a newer yt-dlp
+    - [✓] Build option to bundle an older yt-dlp for testing (`--yt-dlp-version`)
+    - [~] Verify end-to-end in the built apps
+      - [✓] macOS: real release download, checksum, swap into the per-user folder and the bundle;
+        startup hint, update, check and download driven through `ui.py` with the bundle's tools
+      - [ ] macOS: click through Help > Update yt-dlp... in the running `.app`
+      - [ ] Windows build
   - [✓] Do not commit `dist/` or `build/` artifacts
+  - [ ] Make `pyinstaller/build_exe.py` the only build entry point
+    (`build_exe.py` already runs the build with the `.venv` interpreter)
+    - [ ] Add a pinned `pyinstaller` to `requirements-dev.txt`
+      instead of installing it unpinned on every build
+    - [ ] Add `from __future__ import annotations` so an older system Python can start the script
+    - [ ] Remove `build_mac.sh` and `build_windows.bat`
+      (or reduce the `.bat` to a one-line call if double-click builds are wanted)
+    - [ ] Update README, AGENTS.md and CLAUDE.md to the single command
 
 - [ ] **Beta logging follow-ups**
   - [ ] Lower the logging level after beta builds

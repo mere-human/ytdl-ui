@@ -25,6 +25,7 @@ There is no linter configured.
 
 - `main.py` — thin launcher; calls `ui.main()` only when run as a script.
 - `core.py` — Tk-free logic: yt-dlp/deno resolution, command-line args, output parsing, thumbnail fetch/decode, cookie settings persistence, logging, `ProcessController` for cancelling the subprocess. Put new testable logic here.
+- `updater.py` — Tk-free yt-dlp self-updater for frozen builds (Help > Update yt-dlp...): GitHub release check, SHA2-256SUMS verification, staged `--version` smoke test, swap with rollback into a per-user folder or the bundled copy.
 - `ui.py` — Tk widgets and callbacks as **module-level functions and a module-global `root`**, plus `AppState` (`phase`: `init` ↔ `info`, and `busy`). `build_ui(root)` constructs everything, so headless tests can call it on a test root.
 - `pyinstaller/` — spec files and build scripts; the build freezes yt-dlp as its own exe and ships Deno beside the app.
 

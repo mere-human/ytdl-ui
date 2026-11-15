@@ -5,6 +5,7 @@ early: missing PyInstaller, yt-dlp, Deno, or project files.
 """
 
 import argparse
+import os
 import shutil
 import subprocess
 import sys
@@ -69,7 +70,7 @@ def ensure_tools(python: Path):
     if not result.stdout.strip() or not Path(result.stdout.strip()).is_file():
         raise RuntimeError("Could not locate yt-dlp's Python module entry point.")
 
-    deno_candidates = [Path(python).resolve().parent / f"deno{EXE_SUFFIX}"]
+    deno_candidates = [Path(python).absolute().parent / f"deno{EXE_SUFFIX}"]
     deno_from_path = shutil.which("deno")
     if deno_from_path:
         deno_candidates.append(Path(deno_from_path))
@@ -80,8 +81,28 @@ def ensure_tools(python: Path):
         )
 
 
-def build_yt_dlp(python: Path, clean: bool):
+def pinned_yt_dlp_env(python: Path, version: str) -> dict:
+    """Install yt-dlp==version outside the venv; return an env that imports it.
+
+    Used to build with an older yt-dlp (e.g. to test the in-app updater)
+    without touching the venv. Its dependencies still come from the venv.
+    """
+    target = BUILD_DIR / "yt-dlp-pinned" / version
+    if not (target / "yt_dlp").is_dir():
+        subprocess.check_call([
+            str(python), "-m", "pip", "install", "--no-deps", "--upgrade",
+            "--target", str(target), f"yt-dlp=={version}",
+        ])
+    env = dict(os.environ)
+    env["PYTHONPATH"] = os.pathsep.join(
+        filter(None, [str(target), env.get("PYTHONPATH")])
+    )
+    return env
+
+
+def build_yt_dlp(python: Path, clean: bool, version: str | None = None):
     """Freeze yt-dlp into a standalone executable for the app bundle."""
+    env = pinned_yt_dlp_env(python, version) if version else None
     result = subprocess.run(
         [
             str(python), "-c",
@@ -91,6 +112,7 @@ def build_yt_dlp(python: Path, clean: bool):
         capture_output=True,
         text=True,
         check=True,
+        env=env,
     )
     entrypoint = Path(result.stdout.strip())
     cmd = [str(python), "-m", "PyInstaller"]
@@ -107,7 +129,7 @@ def build_yt_dlp(python: Path, clean: bool):
         "--collect-all", "yt_dlp", str(entrypoint),
     ])
     print("Building standalone yt-dlp runtime:", " ".join(cmd))
-    subprocess.check_call(cmd, cwd=REPO_ROOT)
+    subprocess.check_call(cmd, cwd=REPO_ROOT, env=env)
 
 
 def build_command(python: Path, clean: bool) -> list[str]:
@@ -127,6 +149,11 @@ def build_command(python: Path, clean: bool) -> list[str]:
 def main():
     parser = argparse.ArgumentParser(description="Build the ytdl-ui directory bundle (Windows or macOS).")
     parser.add_argument("--clean", action="store_true", help="Remove cached PyInstaller build data")
+    parser.add_argument(
+        "--yt-dlp-version", metavar="VERSION",
+        help="Bundle this yt-dlp release instead of the venv's (e.g. an older "
+             "one, to test the in-app updater)",
+    )
     args = parser.parse_args()
 
     python = preferred_python()
@@ -137,7 +164,7 @@ def main():
         raise SystemExit(1) from exc
 
     print(f"Using Python: {python}")
-    build_yt_dlp(python, args.clean)
+    build_yt_dlp(python, args.clean, args.yt_dlp_version)
     cmd = build_command(python, args.clean)
     print("Running:", " ".join(cmd))
     subprocess.check_call(cmd, cwd=REPO_ROOT)

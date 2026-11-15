@@ -87,29 +87,52 @@ def load_cookie_file_settings():
     return cookie_file, source
 
 
+def _update_settings(values):
+    """Merge values into settings.json so unrelated preferences are kept."""
+    settings = _read_cookie_settings()
+    settings.update(values)
+    path = cookie_settings_path()
+    try:
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as settings_file:
+            json.dump(settings, settings_file)
+    except OSError as exc:
+        log.warning("save settings: %s", exc)
+        return False
+    return True
+
+
 def save_cookie_settings(enabled, browser, cookie_file="", cookie_source="browser"):
     """Persist cookie preferences and a path, never the cookie data itself."""
     if browser not in COOKIE_BROWSERS.values():
         return False
     if cookie_source not in ("browser", "file"):
         return False
-    path = cookie_settings_path()
-    try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        with open(path, "w", encoding="utf-8") as settings_file:
-            json.dump(
-                {
-                    "use_browser_cookies": bool(enabled),
-                    "browser": browser,
-                    "cookie_file": cookie_file or "",
-                    "cookie_source": cookie_source,
-                },
-                settings_file,
-            )
-    except OSError as exc:
-        log.warning("save_cookie_settings: %s", exc)
+    return _update_settings({
+        "use_browser_cookies": bool(enabled),
+        "browser": browser,
+        "cookie_file": cookie_file or "",
+        "cookie_source": cookie_source,
+    })
+
+
+# Where the in-app updater installs yt-dlp: a per-user folder (default) that
+# overrides the bundled copy, or over the bundled copy itself.
+UPDATE_LOCATION_USER = "user"
+UPDATE_LOCATION_BUNDLED = "bundled"
+
+
+def load_update_location():
+    location = _read_cookie_settings().get("yt_dlp_update_location")
+    if location in (UPDATE_LOCATION_USER, UPDATE_LOCATION_BUNDLED):
+        return location
+    return UPDATE_LOCATION_USER
+
+
+def save_update_location(location):
+    if location not in (UPDATE_LOCATION_USER, UPDATE_LOCATION_BUNDLED):
         return False
-    return True
+    return _update_settings({"yt_dlp_update_location": location})
 
 
 def configure_logging(log_dir=None):
@@ -201,7 +224,100 @@ def _find_executable(name):
     return shutil.which(name)
 
 
-YT_DLP = _find_executable("yt-dlp") or "yt-dlp"
+def is_frozen():
+    return bool(getattr(sys, "frozen", False))
+
+
+def user_runtime_dir():
+    """Per-user folder holding a yt-dlp installed by the in-app updater."""
+    return os.path.join(os.path.dirname(cookie_settings_path()), "yt-dlp-runtime")
+
+
+def _user_yt_dlp():
+    folder = user_runtime_dir()
+    for candidate in ("yt-dlp", "yt-dlp.exe"):
+        path = os.path.join(folder, candidate)
+        if os.path.isfile(path) and os.access(path, os.X_OK):
+            return path
+    return None
+
+
+def _user_marker_path():
+    return os.path.join(user_runtime_dir(), "installed-by.json")
+
+
+def write_user_runtime_marker():
+    """Record which app version installed the per-user yt-dlp."""
+    try:
+        with open(_user_marker_path(), "w", encoding="utf-8") as marker:
+            json.dump({"app_version": APP_VERSION}, marker)
+    except OSError as exc:
+        log.warning("write_user_runtime_marker: %s", exc)
+
+
+def _user_marker_is_current():
+    try:
+        with open(_user_marker_path(), encoding="utf-8") as marker:
+            data = json.load(marker)
+    except (OSError, ValueError):
+        return False
+    return isinstance(data, dict) and data.get("app_version") == APP_VERSION
+
+
+def resolve_yt_dlp():
+    """Pick the yt-dlp to run; an updater-installed per-user copy wins in builds."""
+    # Only frozen builds use the per-user copy, so a source checkout keeps
+    # using the venv's yt-dlp even when a built app on the same machine updated.
+    # A copy installed by another app version waits for reconcile_user_yt_dlp.
+    if is_frozen() and load_update_location() == UPDATE_LOCATION_USER:
+        user_copy = _user_yt_dlp()
+        if user_copy and _user_marker_is_current():
+            return user_copy
+    return _find_executable("yt-dlp") or "yt-dlp"
+
+
+def yt_dlp_version_key(version):
+    """'2026.11.10' (or a nightly '2026.11.10.123456') -> tuple of ints."""
+    try:
+        return tuple(int(part) for part in version.strip().split("."))
+    except (AttributeError, ValueError):
+        return None
+
+
+def reconcile_user_yt_dlp():
+    """After the app changed version, keep the per-user yt-dlp only if newer.
+
+    A newer app release may bundle a newer yt-dlp than an earlier in-app
+    update. This runs both executables, so call it off the main thread.
+    """
+    if not is_frozen() or load_update_location() != UPDATE_LOCATION_USER:
+        return
+    user_copy = _user_yt_dlp()
+    if not user_copy or _user_marker_is_current():
+        return
+    bundled = _find_executable("yt-dlp")
+    user_key = yt_dlp_version_key(get_yt_dlp_version(executable=user_copy) or "")
+    bundled_key = yt_dlp_version_key(
+        (get_yt_dlp_version(executable=bundled) if bundled else None) or ""
+    )
+    if user_key and (bundled_key is None or user_key > bundled_key):
+        log.info("reconcile_user_yt_dlp: keeping per-user yt-dlp %s", user_key)
+        write_user_runtime_marker()
+    else:
+        log.info("reconcile_user_yt_dlp: bundled yt-dlp is newer; removing per-user copy")
+        shutil.rmtree(user_runtime_dir(), ignore_errors=True)
+    refresh_yt_dlp()
+
+
+def refresh_yt_dlp():
+    """Re-resolve YT_DLP after an update or a change of update location."""
+    global YT_DLP
+    YT_DLP = resolve_yt_dlp()
+    log.info("yt-dlp resolved to: %s", YT_DLP)
+    return YT_DLP
+
+
+YT_DLP = resolve_yt_dlp()
 
 
 def _js_runtime_opts():
@@ -230,7 +346,7 @@ RATE_LIMITED_MSG = (
     "\n"
     "Try the following:\n"
     "  - Wait a few minutes before retrying.\n"
-    "  - Update yt-dlp; a bundled build must be rebuilt or have yt-dlp.exe replaced.\n"
+    "  - Update yt-dlp (prebuilt app: Help > Update yt-dlp...).\n"
     "  - Avoid checking many URLs in quick succession.\n"
     "\n"
     "Cookies (when YouTube requires sign-in or a CAPTCHA):\n"
@@ -656,11 +772,11 @@ SUBPROCESS_FLAGS = (
 )
 
 
-def get_yt_dlp_version(timeout=90):
+def get_yt_dlp_version(timeout=90, executable=None):
     """Return the yt-dlp version string, or None if it cannot be determined."""
     try:
         ret = subprocess.run(
-            [YT_DLP, "--version"], capture_output=True, encoding="utf-8",
+            [executable or YT_DLP, "--version"], capture_output=True, encoding="utf-8",
             errors="replace", timeout=timeout, **SUBPROCESS_FLAGS,
         )
     except (OSError, subprocess.TimeoutExpired) as exc:
@@ -676,11 +792,13 @@ def version_tuple(version=APP_VERSION):
     return tuple((parts + [0] * 4)[:4])
 
 
-def version_status_text(yt_dlp_version=None):
-    """Footer text showing the app version and, once known, the yt-dlp version."""
+def version_status_text(yt_dlp_version=None, update_version=None):
+    """Footer text: app version, the yt-dlp version once known, and any update."""
     text = f"ytdl-ui {APP_VERSION}"
     if yt_dlp_version:
         text += f" · yt-dlp {yt_dlp_version}"
+    if update_version:
+        text += f" · yt-dlp {update_version} available (Help > Update yt-dlp...)"
     return text
 
 

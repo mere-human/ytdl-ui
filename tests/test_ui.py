@@ -19,6 +19,7 @@ def app_root(monkeypatch):
     """A headless Tk root with the app's widgets built, torn down after use."""
     monkeypatch.setattr(ui.core, "load_cookie_settings", lambda: (False, "chrome"))
     monkeypatch.setattr(ui.core, "load_cookie_file_settings", lambda: ("", "browser"))
+    monkeypatch.setattr(ui.core, "load_update_location", lambda: ui.core.UPDATE_LOCATION_USER)
     try:
         root = tkinter.Tk()
     except tkinter.TclError as exc:  # no display available
@@ -368,3 +369,46 @@ class TestUrlChangeResetsCheck:
         ui.url_var.set(ui.state.checked_url)
         assert ui.state.phase == "info"
         assert ui.info_var.get() == "formats"
+
+
+class TestYtDlpUpdateMenu:
+    def test_help_menu_has_update_entries(self, app_root):
+        labels = [ui.help_menu.entrycget(i, "label")
+                  for i in range(ui.help_menu.index("end") + 1)]
+        assert labels == ["Update yt-dlp...", "Install yt-dlp updates per user"]
+        assert ui.selected_update_location() == ui.core.UPDATE_LOCATION_USER
+        ui.update_per_user_var.set(False)
+        assert ui.selected_update_location() == ui.core.UPDATE_LOCATION_BUNDLED
+
+    def test_per_user_toggle_disabled_from_source(self, app_root):
+        assert str(ui.help_menu.entrycget(1, "state")) == "disabled"
+
+    def test_update_from_source_only_explains(self, app_root, monkeypatch):
+        shown = []
+        monkeypatch.setattr(ui.messagebox, "showinfo", lambda *a, **k: shown.append(a))
+        ui.root = app_root
+        ui.update_yt_dlp()
+        assert "pip install -U yt-dlp" in shown[0][1]
+        assert ui.state.busy is False
+
+    def test_update_refused_while_busy(self, app_root, monkeypatch):
+        shown = []
+        monkeypatch.setattr(ui.updater, "is_supported", lambda: True)
+        monkeypatch.setattr(ui.messagebox, "showinfo", lambda *a, **k: shown.append(a))
+        ui.root = app_root
+        ui.url_var.set("https://youtu.be/dQw4w9WgXcQ")
+        ui.set_busy(True)
+        ui.update_yt_dlp()
+        assert "Wait" in shown[0][1]
+
+    def test_up_to_date_finishes_without_prompt(self, app_root, monkeypatch):
+        shown = []
+        monkeypatch.setattr(ui.messagebox, "showinfo", lambda *a, **k: shown.append(a))
+        monkeypatch.setattr(ui.messagebox, "askyesno", lambda *a, **k: pytest.fail("asked"))
+        monkeypatch.setattr(ui, "refresh_version_status", lambda: None)
+        ui.root = app_root
+        ui.set_busy(True)
+        release = ui.updater.Release("2026.11.10", "yt-dlp.exe", "u", "s")
+        ui.offer_yt_dlp_update("2026.11.10", release)
+        assert shown[0][1] == "yt-dlp 2026.11.10 is up to date."
+        assert ui.state.busy is False

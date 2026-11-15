@@ -36,14 +36,26 @@ Notes:
   to use those formats.
 - **Updating yt-dlp.**
   When YouTube changes, an old yt-dlp may stop working.
-  Close the app and replace `yt-dlp.exe` in the app folder
-  with the latest `yt-dlp.exe` from the
+  On startup the app checks for a newer stable yt-dlp
+  and says so in the status bar.
+  Choose **Help > Update yt-dlp...** to install it:
+  the app downloads the official build from the
   [yt-dlp releases](https://github.com/yt-dlp/yt-dlp/releases),
-  keeping the same filename.
-  A newer ytdl-ui release also ships a newer yt-dlp.
+  checks it against the release's SHA-256 checksums,
+  makes sure it runs, and then swaps it in.
+  No restart is needed.
+  By default the update goes to a per-user folder
+  (`%LOCALAPPDATA%\ytdl-ui\yt-dlp-runtime\`)
+  and is used instead of the bundled copy,
+  so it works even if the app folder is read-only.
+  Uncheck **Help > Install yt-dlp updates per user**
+  to replace `yt-dlp.exe` in the app folder instead.
+  You can still replace `yt-dlp.exe` by hand while the app is closed.
+  A newer ytdl-ui release also ships a newer yt-dlp;
+  an older per-user copy is then removed automatically.
   The status bar shows the yt-dlp version in use.
 - **Uninstalling.** Delete the app folder.
-  Settings are stored in `%LOCALAPPDATA%\ytdl-ui\settings.json`
+  Settings and any updated yt-dlp are stored in `%LOCALAPPDATA%\ytdl-ui\`
   and logs in `%TEMP%\ytdl-ui\`; delete those too if you like.
 
 If `import tk` fails on Mac with "ModuleNotFoundError: No module named '_tkinter'", install Tkinter:
@@ -92,6 +104,8 @@ and turns the button back into **check** for the new URL.
 
 The status bar at the bottom shows the app version (CalVer, `YYYY.MM.DD`)
 and the yt-dlp version in use.
+In the prebuilt apps it also tells you when a newer yt-dlp is available
+(see [Updating yt-dlp](#windows-app-prebuilt)).
 
 ### Browser cookies
 
@@ -128,7 +142,7 @@ If it still happens:
 - If YouTube asks you to sign in or solve a CAPTCHA,
   enable [browser cookies](#browser-cookies).
 - Update yt-dlp
-  (prebuilt app: see [Updating yt-dlp](#windows-app-prebuilt);
+  (prebuilt app: **Help > Update yt-dlp...**;
   from source: `pip install -U yt-dlp` in the venv).
 - Avoid checking many URLs in quick succession.
 
@@ -205,6 +219,8 @@ that lacks the dependencies.
 - `core.py` — Tk-free logic: tool resolution, yt-dlp arguments, output parsing,
   thumbnails, cookie settings, logging, process control.
   `core.APP_VERSION` is the single source of the app version.
+- `updater.py` — Tk-free in-app yt-dlp updater for the built apps
+  (release check, download, checksum, safe swap).
 - `pyinstaller/` — Windows and macOS build scripts and the shared spec.
 
 Importing `main` or `ui` doesn't create a window.
@@ -249,4 +265,15 @@ Build on the architecture you target (arm64 or x86_64).
 Unlike the Windows build, it also leaves a plain `dist/ytdl-ui/` folder, which opens Terminal when double-clicked; ship the `.app`.
 
 The build helper supports Windows and macOS only.
+
+To test the in-app yt-dlp updater, bundle an older yt-dlp:
+
+```bash
+pyinstaller/build_mac.sh --yt-dlp-version 2026.10.21   # Windows: build_windows.bat --yt-dlp-version ...
+```
+
+It installs that release under `build/yt-dlp-pinned/` (the venv is untouched)
+and freezes it instead of the venv's yt-dlp.
+The built app then shows a newer yt-dlp in the status bar,
+and **Help > Update yt-dlp...** installs it.
 `build/` and `dist/` are git-ignored; don't commit them.

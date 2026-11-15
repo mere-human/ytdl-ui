@@ -14,7 +14,7 @@ yt_dlp_bin = yt_dlp_dir / f'yt-dlp{exe_suffix}'
 if not is_win:
     yt_dlp_dir = yt_dlp_dir / 'yt-dlp'  # one-dir build
     yt_dlp_bin = yt_dlp_dir / 'yt-dlp'
-deno_bin = Path(sys.executable).resolve().parent / f'deno{exe_suffix}'
+deno_bin = Path(sys.executable).absolute().parent / f'deno{exe_suffix}'
 if not deno_bin.is_file():
     deno_from_path = shutil.which('deno')
     if deno_from_path:

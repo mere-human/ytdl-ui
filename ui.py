@@ -2,14 +2,15 @@
 # https://www.youtube.com/watch?v=dQw4w9WgXcQ
 
 from dataclasses import dataclass
-from tkinter import E, END, HORIZONTAL, N, S, VERTICAL, W, BooleanVar, StringVar, Text, Tk, Toplevel
+from tkinter import E, END, HORIZONTAL, N, S, VERTICAL, W, BooleanVar, Menu, StringVar, Text, Tk, Toplevel
 from tkinter import ttk
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 import queue
 import os
 import threading
 
 import core
+import updater
 from core import (
     AUTO_SUBS_PRINT_TEMPLATE,
     FORMAT_TYPES,
@@ -533,14 +534,111 @@ def run_download_in_thread(
     thread.start()
 
 
-def refresh_version_status():
-    """Look up the yt-dlp version off the main thread and show it in the footer."""
+def refresh_version_status(check_for_update=False):
+    """Look up the yt-dlp version off the main thread and show it in the footer.
+
+    With check_for_update (startup), frozen builds also reconcile a per-user
+    yt-dlp and quietly ask GitHub for a newer release to hint at in the footer.
+    """
     def worker():
+        if check_for_update and updater.is_supported():
+            core.reconcile_user_yt_dlp()
         version = core.get_yt_dlp_version()
-        text = core.version_status_text(version)
-        _post(lambda: status_var.set(text))
+        _post(lambda: status_var.set(core.version_status_text(version)))
+        if not (check_for_update and updater.is_supported()):
+            return
+        try:
+            release = updater.fetch_latest_release()
+        except updater.UpdateError:
+            return  # already logged; the startup check stays silent
+        if updater.is_newer(release.version, version):
+            text = core.version_status_text(version, release.version)
+            _post(lambda: status_var.set(text))
 
     threading.Thread(target=worker, daemon=True, name="version").start()
+
+
+def selected_update_location():
+    if update_per_user_var.get():
+        return core.UPDATE_LOCATION_USER
+    return core.UPDATE_LOCATION_BUNDLED
+
+
+def on_update_location_changed():
+    """Persist the choice and switch to the yt-dlp copy it selects."""
+    core.save_update_location(selected_update_location())
+    core.refresh_yt_dlp()
+    refresh_version_status()
+
+
+def update_yt_dlp():
+    """Help > Update yt-dlp...: check, confirm, then install off the main thread."""
+    if not updater.is_supported():
+        messagebox.showinfo("Update yt-dlp", updater.unsupported_reason(), parent=root)
+        return
+    if state.busy:
+        messagebox.showinfo(
+            "Update yt-dlp", "Wait for the current check or download to finish.",
+            parent=root,
+        )
+        return
+    set_busy(True)
+    status_var.set("Checking for yt-dlp updates...")
+
+    def worker():
+        current = core.get_yt_dlp_version()
+        try:
+            release = updater.fetch_latest_release()
+        except updater.UpdateError as exc:
+            error = str(exc)
+            _post(lambda: finish_yt_dlp_update(error=error))
+            return
+        _post(lambda: offer_yt_dlp_update(current, release))
+
+    threading.Thread(target=worker, daemon=True, name="update-check").start()
+
+
+def offer_yt_dlp_update(current, release):
+    if not updater.is_newer(release.version, current):
+        finish_yt_dlp_update(message=f"yt-dlp {current} is up to date.")
+        return
+    location = selected_update_location()
+    target = updater.install_target(location)
+    if not messagebox.askyesno(
+        "Update yt-dlp",
+        f"yt-dlp {release.version} is available (installed: {current or 'unknown'}).\n\n"
+        f"Download, verify and install it to:\n{target}",
+        parent=root,
+    ):
+        finish_yt_dlp_update()
+        return
+    status_var.set(f"Downloading yt-dlp {release.version}...")
+
+    def worker():
+        try:
+            result = updater.install_update(release, location)
+        except updater.UpdateError as exc:
+            error = str(exc)
+            _post(lambda: finish_yt_dlp_update(error=error))
+            return
+        except Exception as exc:  # keep the UI usable on unexpected failures
+            log.exception("install_update failed")
+            error = f"yt-dlp update failed:\n{exc}"
+            _post(lambda: finish_yt_dlp_update(error=error))
+            return
+        message = updater.result_message(result)
+        _post(lambda: finish_yt_dlp_update(message=message))
+
+    threading.Thread(target=worker, daemon=True, name="update").start()
+
+
+def finish_yt_dlp_update(message=None, error=None):
+    set_busy(False)
+    refresh_version_status()
+    if error:
+        messagebox.showerror("Update yt-dlp", error, parent=root)
+    elif message:
+        messagebox.showinfo("Update yt-dlp", message, parent=root)
 
 
 def run_btn_press(*args):
@@ -608,9 +706,26 @@ def build_ui(root):
     global cookie_browser_check, cookie_browser_combo, cookie_file_label
     global cookie_file_var, cookie_source_var, cookie_previous_browser_var
     global content_frame, thumb_label, info_frame, info_var, info_text, info_scroll
-    global status_var, status_label
+    global status_var, status_label, help_menu, update_per_user_var
 
     root.title("Video Downloader")
+
+    menubar = Menu(root)
+    help_menu = Menu(menubar, tearoff=0)
+    help_menu.add_command(label="Update yt-dlp...", command=update_yt_dlp)
+    update_per_user_var = BooleanVar(
+        value=core.load_update_location() == core.UPDATE_LOCATION_USER,
+    )
+    # Checked: install updates into the per-user folder (overrides the bundled
+    # copy, works when the app folder is read-only). Unchecked: replace the
+    # bundled copy. Only meaningful for frozen builds.
+    help_menu.add_checkbutton(
+        label="Install yt-dlp updates per user", variable=update_per_user_var,
+        command=on_update_location_changed,
+        state="normal" if updater.is_supported() else "disabled",
+    )
+    menubar.add_cascade(label="Help", menu=help_menu)
+    root.configure(menu=menubar)
 
     # |-------------------------------------------------|
     # | frame                                           |
@@ -852,7 +967,7 @@ def main():
     root.after(0, focus_window)
     # Start draining the thread->UI queue on the main thread.
     root.after(50, _pump_ui_queue)
-    refresh_version_status()
+    refresh_version_status(check_for_update=True)
 
     root.mainloop()
 

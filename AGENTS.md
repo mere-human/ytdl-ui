@@ -22,6 +22,7 @@ Work is tracked in **[TASKS.md](TASKS.md)** (grouped by priority). Distribution 
 main.py          # thin application entry point
 ui.py            # Tk widgets, callbacks, workers, and AppState
 core.py          # Tk-free helpers, yt-dlp commands, and process control
+updater.py       # Tk-free yt-dlp self-updater for frozen builds
 ```
 
 Current state machine in `run_btn_press`:
@@ -58,6 +59,20 @@ Agents may split into modules when it improves clarity (e.g. `ui/`, `downloader/
   so yt-dlp can fetch the EJS challenge solver required by current YouTube
   signatures.
 - For PyInstaller builds, consider bundling yt-dlp (and deno) or documenting how users obtain them alongside the exe.
+- **Updater** (`updater.py`, frozen Windows/macOS builds only): fetches the
+  latest stable GitHub release, downloads `yt-dlp.exe` / `yt-dlp_macos.zip`
+  (only from `DOWNLOAD_PREFIX`), checks it against `SHA2-256SUMS`, runs
+  `--version` on the staged copy, then swaps the file (Windows) or one-dir
+  folder (macOS) with a `.old` rollback. Staging happens beside the target so
+  the swap is a same-volume rename.
+  The target is a per-user `yt-dlp-runtime/` next to `settings.json`
+  (default) or the bundled copy, per the `yt_dlp_update_location` setting.
+  `core.resolve_yt_dlp` prefers the per-user copy only in frozen builds and
+  only if its `installed-by.json` marker matches `APP_VERSION`;
+  after an app upgrade `core.reconcile_user_yt_dlp` (startup worker) keeps it
+  only if it is newer than the bundled yt-dlp.
+  Settings writes go through `core._update_settings`, which merges keys.
+  To test it, build with `--yt-dlp-version <older release>` (see README).
 
 ### UI (Tkinter)
 
